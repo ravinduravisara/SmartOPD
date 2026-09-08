@@ -7,6 +7,7 @@ class User {
     this.phone,
     this.dateOfBirth,
     this.gender,
+    this.profilePicture,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class User {
   final String? phone;
   final DateTime? dateOfBirth;
   final String? gender;
+  final String? profilePicture;
 
   factory User.fromJson(Map<String, dynamic> json) => User(
     id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
@@ -27,6 +29,7 @@ class User {
         ? null
         : DateTime.tryParse(json['dateOfBirth'].toString()),
     gender: json['gender'] as String?,
+    profilePicture: json['profilePicture'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -36,5 +39,6 @@ class User {
     if (phone != null) 'phone': phone,
     if (dateOfBirth != null) 'dateOfBirth': dateOfBirth!.toIso8601String(),
     if (gender != null) 'gender': gender,
+    if (profilePicture != null) 'profilePicture': profilePicture,
   };
 }

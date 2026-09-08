@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'config/theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'models/dependent.dart';
+import 'models/user.dart';
 
 void main() => runApp(const SmartOpdApp());
 
@@ -382,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? deletingDependentId;
   bool editingProfile = false;
   bool savingProfile = false;
+  String? pendingProfilePicture;
 
   @override
   void initState() {
@@ -421,9 +426,17 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           Text('Good morning,', style: Theme.of(context).textTheme.bodyLarge),
-          Text(
-            widget.auth.user?.name ?? 'there',
-            style: Theme.of(context).textTheme.headlineLarge,
+          Row(
+            children: [
+              _ProfileAvatar(user: widget.auth.user, radius: 27),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.auth.user?.name ?? 'there',
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 22),
           const _CareCard(),
@@ -552,6 +565,24 @@ class _HomeScreenState extends State<HomeScreen> {
                         labelText: 'Full name',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        _ProfileAvatar(
+                          imageData: pendingProfilePicture,
+                          user: widget.auth.user,
+                          radius: 30,
+                        ),
+                        const SizedBox(width: 14),
+                        OutlinedButton.icon(
+                          onPressed: savingProfile
+                              ? null
+                              : _chooseProfilePicture,
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          label: const Text('Change photo'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -795,7 +826,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openProfileForm() {
     profileName.text = widget.auth.user?.name ?? '';
-    setState(() => editingProfile = true);
+    setState(() {
+      pendingProfilePicture = widget.auth.user?.profilePicture;
+      editingProfile = true;
+    });
+  }
+
+  Future<void> _chooseProfilePicture() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 720,
+      maxHeight: 720,
+      imageQuality: 75,
+    );
+    if (image == null || !mounted) return;
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      pendingProfilePicture = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    });
   }
 
   Future<void> _saveProfile() async {
@@ -807,11 +856,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() => savingProfile = true);
     try {
-      await widget.auth.service.updateProfile({'name': name});
+      await widget.auth.service.updateProfile({
+        'name': name,
+        'profilePicture': pendingProfilePicture,
+      });
       if (mounted)
         setState(() {
           editingProfile = false;
           savingProfile = false;
+          pendingProfilePicture = null;
         });
     } catch (error) {
       if (mounted) {
@@ -844,6 +897,42 @@ class _BrandLockup extends StatelessWidget {
       ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
     ),
   );
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({this.user, this.imageData, required this.radius});
+
+  final User? user;
+  final String? imageData;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = imageData ?? user?.profilePicture;
+    ImageProvider? image;
+    if (source != null && source.startsWith('data:image/')) {
+      final comma = source.indexOf(',');
+      if (comma > 0) {
+        try {
+          image = MemoryImage(base64Decode(source.substring(comma + 1)));
+        } on FormatException {
+          image = null;
+        }
+      }
+    }
+    final name = user?.name.trim() ?? '';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppTheme.mint,
+      backgroundImage: image,
+      child: image == null
+          ? Text(
+              name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
+              style: TextStyle(fontSize: radius * 0.75, color: AppTheme.navy),
+            )
+          : null,
+    );
+  }
 }
 
 class _CareCard extends StatelessWidget {

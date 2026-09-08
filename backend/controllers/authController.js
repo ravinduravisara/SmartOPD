@@ -13,7 +13,7 @@ const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex'
 const codeFields = (code) => ({ hash: hashCode(code), expires: new Date(Date.now() + 10 * 60 * 1000) });
 
 function publicUser(user) {
-	return { id: user._id, name: user.name, email: user.email, phone: user.phone, role: user.role, dateOfBirth: user.dateOfBirth, gender: user.gender };
+	return { id: user._id, name: user.name, email: user.email, phone: user.phone, role: user.role, dateOfBirth: user.dateOfBirth, gender: user.gender, profilePicture: user.profilePicture || null };
 }
 
 function issueToken(user) {
@@ -83,9 +83,10 @@ async function getProfile(req, res, next) {
 
 async function updateProfile(req, res, next) {
 	try {
-		const allowed = ['name', 'phone', 'dateOfBirth', 'gender'];
+		const allowed = ['name', 'phone', 'dateOfBirth', 'gender', 'profilePicture'];
 		const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
 		if (updates.name !== undefined && (!String(updates.name).trim() || String(updates.name).length > 100)) return res.status(400).json({ message: 'Name is required and must be 100 characters or fewer' });
+		if (updates.profilePicture !== undefined && updates.profilePicture !== null && (!String(updates.profilePicture).startsWith('data:image/') || String(updates.profilePicture).length > 4500000)) return res.status(400).json({ message: 'Profile picture must be a valid image smaller than 3 MB' });
 		const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true });
 		return res.json({ user: publicUser(user) });
 	} catch (error) { next(error); }
