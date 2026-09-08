@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
 function requireDatabase(req, res, next) {
 
@@ -13,8 +14,14 @@ function requireAuth(req, res, next) {
 	if (!token) return res.status(401).json({ message: 'Authentication required' });
 
 	try {
-		req.user = jwt.verify(token, process.env.JWT_SECRET || 'development-secret-change-me');
-		next();
+		req.user = jwt.verify(token, process.env.JWT_SECRET, { issuer: 'smartopd' });
+		User.findById(req.user.id).select('+tokenVersion')
+			.then((user) => {
+				if (!user || user.tokenVersion !== req.user.tokenVersion || !user.isEmailVerified) return res.status(401).json({ message: 'Session is invalid or expired' });
+				req.userRecord = user;
+				next();
+			})
+			.catch(next);
 	} catch (error) {
 		return res.status(401).json({ message: 'Invalid or expired token' });
 	}

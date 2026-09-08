@@ -29,13 +29,13 @@ class AuthService {
     }
   }
 
-  Future<User> register({
+  Future<void> register({
     required String name,
     required String email,
     required String password,
     String? phone,
   }) async {
-    final data = await _api.request(
+    await _api.request(
       'POST',
       '/auth/register',
       body: {
@@ -45,8 +45,19 @@ class AuthService {
         if (phone != null) 'phone': phone,
       },
     );
+  }
+
+  Future<User> verifyEmail(String email, String code) async {
+    final data = await _api.request(
+      'POST',
+      '/auth/verify-email',
+      body: {'email': email, 'code': code},
+    );
     return _saveSession(data);
   }
+
+  Future<void> resendVerification(String email) =>
+      _api.request('POST', '/auth/resend-verification', body: {'email': email});
 
   Future<User> login({required String email, required String password}) async {
     final data = await _api.request(
@@ -80,12 +91,15 @@ class AuthService {
   Future<void> forgotPassword(String email) async =>
       _api.request('POST', '/auth/forgot-password', body: {'email': email});
 
-  Future<void> resetPassword(String token, String password) async =>
-      _api.request(
-        'POST',
-        '/auth/reset-password/$token',
-        body: {'password': password},
-      );
+  Future<void> resetPassword(
+    String email,
+    String code,
+    String password,
+  ) async => _api.request(
+    'POST',
+    '/auth/reset-password',
+    body: {'email': email, 'code': code, 'password': password},
+  );
 
   Future<List<Dependent>> getDependents() async =>
       ((await _api.request('GET', '/dependents'))['dependents'] as List)

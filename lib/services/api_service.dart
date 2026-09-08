@@ -55,9 +55,23 @@ class ApiService {
             .timeout(const Duration(seconds: 15)),
       _ => throw ArgumentError('Unsupported HTTP method: $method'),
     };
-    final data = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    Map<String, dynamic> data;
+    if (response.body.trim().isEmpty) {
+      data = <String, dynamic>{};
+    } else {
+      try {
+        final decoded = jsonDecode(response.body);
+        data = decoded is Map<String, dynamic>
+            ? decoded
+            : <String, dynamic>{'message': decoded.toString()};
+      } on FormatException {
+        data = <String, dynamic>{
+          'message': response.statusCode == 429
+              ? 'Too many requests. Please wait and try again.'
+              : 'The server returned an invalid response. Please try again.',
+        };
+      }
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         data['message'] as String? ?? 'Request failed',

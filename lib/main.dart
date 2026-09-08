@@ -48,117 +48,126 @@ class _AuthScreenState extends State<AuthScreen> {
   final name = TextEditingController();
   final email = TextEditingController();
   final password = TextEditingController();
+  final otp = TextEditingController();
+  final resetPassword = TextEditingController();
   bool register = false;
   bool obscurePassword = true;
+  bool verificationStep = false;
+  bool resetStep = false;
 
   @override
   void dispose() {
     name.dispose();
     email.dispose();
     password.dispose();
+    otp.dispose();
+    resetPassword.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _BrandLockup(),
-                const SizedBox(height: 52),
-                Text(
-                  register ? 'Create your account' : 'Welcome back',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  register
-                      ? 'Your care journey starts here.'
-                      : 'Manage your appointments and family care in one place.',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 32),
-                if (register) ...[
-                  _field('Full name', name, Icons.person_outline),
-                  const SizedBox(height: 14),
-                ],
-                _field(
-                  'Email address',
-                  email,
-                  Icons.mail_outline,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: password,
-                  obscureText: obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      tooltip: obscurePassword
-                          ? 'Show password'
-                          : 'Hide password',
-                      onPressed: () =>
-                          setState(() => obscurePassword = !obscurePassword),
-                      icon: Icon(
-                        obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+      child: verificationStep
+          ? _verificationView(context)
+          : Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _BrandLockup(),
+                      const SizedBox(height: 52),
+                      Text(
+                        register ? 'Create your account' : 'Welcome back',
+                        style: Theme.of(context).textTheme.headlineLarge,
                       ),
-                    ),
-                  ),
-                ),
-                if (!register)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => _showMessage(
-                        'Password reset is available from the API.',
+                      const SizedBox(height: 8),
+                      Text(
+                        register
+                            ? 'Your care journey starts here.'
+                            : 'Manage your appointments and family care in one place.',
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      child: const Text('Forgot password?'),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: FilledButton(
-                    onPressed: widget.auth.loading ? null : _submit,
-                    child: widget.auth.loading
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(register ? 'Create account' : 'Log in'),
+                      const SizedBox(height: 32),
+                      if (register) ...[
+                        _field('Full name', name, Icons.person_outline),
+                        const SizedBox(height: 14),
+                      ],
+                      _field(
+                        'Email address',
+                        email,
+                        Icons.mail_outline,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: password,
+                        obscureText: obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            tooltip: obscurePassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () => setState(
+                              () => obscurePassword = !obscurePassword,
+                            ),
+                            icon: Icon(
+                              obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!register)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _startPasswordReset,
+                            child: const Text('Forgot password?'),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: FilledButton(
+                          onPressed: widget.auth.loading ? null : _submit,
+                          child: widget.auth.loading
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(register ? 'Create account' : 'Log in'),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => setState(() => register = !register),
+                          child: Text(
+                            register
+                                ? 'Already have an account? Log in'
+                                : 'New to SmartOPD? Create an account',
+                          ),
+                        ),
+                      ),
+                      if (widget.auth.error != null) ...[
+                        const SizedBox(height: 12),
+                        _ErrorMessage(message: widget.auth.error!),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton(
-                    onPressed: () => setState(() => register = !register),
-                    child: Text(
-                      register
-                          ? 'Already have an account? Log in'
-                          : 'New to SmartOPD? Create an account',
-                    ),
-                  ),
-                ),
-                if (widget.auth.error != null) ...[
-                  const SizedBox(height: 12),
-                  _ErrorMessage(message: widget.auth.error!),
-                ],
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
     ),
   );
 
@@ -174,16 +183,175 @@ class _AuthScreenState extends State<AuthScreen> {
   );
 
   Future<void> _submit() async {
+    final emailValue = email.text.trim();
+    if (!_isValidEmail(emailValue)) {
+      _showMessage('Enter a valid email address.');
+      return;
+    }
+    if (password.text.isEmpty) {
+      _showMessage('Enter your password.');
+      return;
+    }
     if (register) {
-      await widget.auth.register(
-        name.text.trim(),
-        email.text.trim(),
-        password.text,
-      );
+      if (name.text.trim().isEmpty) {
+        _showMessage('Enter your full name.');
+        return;
+      }
+      if (!_isStrongPassword(password.text)) {
+        _showMessage(
+          'Use 8+ characters with uppercase, lowercase, number and symbol.',
+        );
+        return;
+      }
+      await widget.auth.register(name.text.trim(), emailValue, password.text);
+      if (mounted && widget.auth.error == null) {
+        setState(() => verificationStep = true);
+      }
     } else {
-      await widget.auth.login(email.text.trim(), password.text);
+      await widget.auth.login(emailValue, password.text);
     }
     if (mounted && widget.auth.user != null) widget.onChanged();
+  }
+
+  Future<void> _startPasswordReset() async {
+    final emailValue = email.text.trim();
+    if (!_isValidEmail(emailValue)) {
+      _showMessage('Enter your email address first.');
+      return;
+    }
+    await widget.auth.forgotPassword(emailValue);
+    if (mounted && widget.auth.error == null) {
+      setState(() {
+        verificationStep = true;
+        resetStep = true;
+      });
+      _showMessage('A password reset code was sent to your email.');
+    }
+  }
+
+  bool _isValidEmail(String value) =>
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
+
+  bool _isStrongPassword(String value) =>
+      value.length >= 8 &&
+      value.length <= 128 &&
+      RegExp(r'[A-Z]').hasMatch(value) &&
+      RegExp(r'[a-z]').hasMatch(value) &&
+      RegExp(r'\d').hasMatch(value) &&
+      RegExp(r'[^A-Za-z0-9]').hasMatch(value);
+
+  Widget _verificationView(BuildContext context) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _BrandLockup(),
+            const SizedBox(height: 40),
+            Text(
+              resetStep ? 'Reset your password' : 'Verify your email',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              resetStep
+                  ? 'Enter the code sent to ${email.text} and choose a new password.'
+                  : 'Enter the 6-digit code sent to ${email.text}.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: otp,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(
+                labelText: 'Verification code',
+                prefixIcon: Icon(Icons.verified_user_outlined),
+              ),
+            ),
+            if (resetStep) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: resetPassword,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'New password',
+                  prefixIcon: Icon(Icons.lock_reset_outlined),
+                  helperText:
+                      '8+ chars with uppercase, lowercase, number and symbol',
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: FilledButton(
+                onPressed: widget.auth.loading ? null : _submitCode,
+                child: Text(resetStep ? 'Reset password' : 'Verify email'),
+              ),
+            ),
+            TextButton(
+              onPressed: widget.auth.loading ? null : _resendOrSendReset,
+              child: Text(
+                resetStep
+                    ? 'Send a new reset code'
+                    : 'Resend verification code',
+              ),
+            ),
+            if (widget.auth.error != null) ...[
+              const SizedBox(height: 12),
+              _ErrorMessage(message: widget.auth.error!),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _submitCode() async {
+    if (resetStep) {
+      if (otp.text.trim().length != 6 ||
+          !_isStrongPassword(resetPassword.text)) {
+        _showMessage('Enter the 6-digit code and a strong new password.');
+        return;
+      }
+      await widget.auth.resetPassword(
+        email.text.trim(),
+        otp.text.trim(),
+        resetPassword.text,
+      );
+      if (mounted && widget.auth.error == null) {
+        setState(() {
+          verificationStep = false;
+          resetStep = false;
+          otp.clear();
+          resetPassword.clear();
+        });
+        _showMessage(
+          'Password reset successfully. Log in with your new password.',
+        );
+      }
+    } else {
+      if (otp.text.trim().length != 6) {
+        _showMessage('Enter the 6-digit verification code.');
+        return;
+      }
+      await widget.auth.verifyEmail(email.text.trim(), otp.text.trim());
+      if (mounted && widget.auth.user != null) widget.onChanged();
+    }
+  }
+
+  Future<void> _resendOrSendReset() async {
+    if (resetStep) {
+      await widget.auth.forgotPassword(email.text.trim());
+    } else {
+      await widget.auth.resendVerification(email.text.trim());
+    }
+    if (mounted && widget.auth.error == null)
+      _showMessage('A new code was sent.');
   }
 
   void _showMessage(String message) => ScaffoldMessenger.of(

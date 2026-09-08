@@ -27,6 +27,18 @@ class AuthProvider extends ChangeNotifier {
       phone: phone,
     ),
   );
+
+  Future<void> verifyEmail(String email, String code) =>
+      _run(() => service.verifyEmail(email, code));
+
+  Future<void> resendVerification(String email) =>
+      _run(() => service.resendVerification(email));
+
+  Future<void> forgotPassword(String email) =>
+      _run(() => service.forgotPassword(email));
+
+  Future<void> resetPassword(String email, String code, String password) =>
+      _run(() => service.resetPassword(email, code, password));
   Future<void> logout() => _run(service.logout);
 
   Future<void> _run(Future<void> Function() action) async {
