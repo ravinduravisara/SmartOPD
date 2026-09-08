@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Backend environment and secrets
+backend/.env
+backend/.env.*
+!backend/.env.example
