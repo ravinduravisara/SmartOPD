@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -12,10 +13,18 @@ class ApiException implements Exception {
 
 class ApiService {
   ApiService({String? baseUrl})
-    : baseUrl = baseUrl ?? 'http://10.0.2.2:3000/api';
+    : baseUrl =
+          baseUrl ??
+          const String.fromEnvironment(
+            'API_BASE_URL',
+            defaultValue: '',
+          ).ifEmpty(() => _localApiBaseUrl);
 
   final String baseUrl;
   String? token;
+
+  static String get _localApiBaseUrl =>
+      'http://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:3000/api';
 
   Future<Map<String, dynamic>> request(
     String method,
@@ -28,18 +37,22 @@ class ApiService {
     };
     final uri = Uri.parse('$baseUrl$path');
     final response = switch (method) {
-      'GET' => await http.get(uri, headers: headers),
-      'POST' => await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(body ?? {}),
-      ),
-      'PATCH' => await http.patch(
-        uri,
-        headers: headers,
-        body: jsonEncode(body ?? {}),
-      ),
-      'DELETE' => await http.delete(uri, headers: headers),
+      'GET' =>
+        await http
+            .get(uri, headers: headers)
+            .timeout(const Duration(seconds: 15)),
+      'POST' =>
+        await http
+            .post(uri, headers: headers, body: jsonEncode(body ?? {}))
+            .timeout(const Duration(seconds: 15)),
+      'PATCH' =>
+        await http
+            .patch(uri, headers: headers, body: jsonEncode(body ?? {}))
+            .timeout(const Duration(seconds: 15)),
+      'DELETE' =>
+        await http
+            .delete(uri, headers: headers)
+            .timeout(const Duration(seconds: 15)),
       _ => throw ArgumentError('Unsupported HTTP method: $method'),
     };
     final data = response.body.isEmpty
@@ -53,4 +66,8 @@ class ApiService {
     }
     return data;
   }
+}
+
+extension on String {
+  String ifEmpty(String Function() fallback) => isEmpty ? fallback() : this;
 }
