@@ -4,9 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'config/theme.dart';
+import 'features/appointments/appointments_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/hospitals/hospitals_screen.dart';
+import 'models/appointment.dart';
 import 'models/dependent.dart';
 import 'models/user.dart';
+import 'utils/date_utils.dart';
+import 'widgets/error_widget.dart';
 
 void main() => runApp(const SmartOpdApp());
 
@@ -396,6 +401,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Dependent>> dependents;
+  late Future<List<Appointment>> upcomingAppointments;
   final dependentName = TextEditingController();
   final dependentRelationship = TextEditingController();
   final editDependentName = TextEditingController();
@@ -414,7 +420,35 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     dependents = widget.auth.service.getDependents();
+    upcomingAppointments = widget.auth.service.getAppointments(
+      scope: 'upcoming',
+    );
     profileName = TextEditingController(text: widget.auth.user?.name);
+  }
+
+  void _reloadHome() => setState(() {
+    dependents = widget.auth.service.getDependents();
+    upcomingAppointments = widget.auth.service.getAppointments(
+      scope: 'upcoming',
+    );
+  });
+
+  Future<void> _openHospitals() async {
+    final booked = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => HospitalsScreen(service: widget.auth.service),
+      ),
+    );
+    if (booked == true && mounted) _reloadHome();
+  }
+
+  Future<void> _openAppointments() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AppointmentsScreen(service: widget.auth.service),
+      ),
+    );
+    if (changed == true && mounted) _reloadHome();
   }
 
   @override
@@ -441,8 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     ),
     body: RefreshIndicator(
-      onRefresh: () async =>
-          setState(() => dependents = widget.auth.service.getDependents()),
+      onRefresh: () async => _reloadHome(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -471,8 +504,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _ActionTile(
                   icon: Icons.calendar_month_outlined,
                   label: 'Book visit',
-                  onTap: () =>
-                      _showMessage('Choose a doctor to book an appointment.'),
+                  onTap: _openHospitals,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActionTile(
+                  icon: Icons.event_note_outlined,
+                  label: 'My visits',
+                  onTap: _openAppointments,
                 ),
               ),
               const SizedBox(width: 12),
@@ -484,6 +524,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 28),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Upcoming visits',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              TextButton(
+                onPressed: _openAppointments,
+                child: const Text('See all'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _UpcomingAppointments(
+            future: upcomingAppointments,
+            onTap: _openAppointments,
           ),
           const SizedBox(height: 28),
           Row(
@@ -958,6 +1017,101 @@ class _ProfileAvatar extends StatelessWidget {
           : null,
     );
   }
+}
+
+/// The next few booked visits, shown on the home screen.
+class _UpcomingAppointments extends StatelessWidget {
+  const _UpcomingAppointments({required this.future, required this.onTap});
+  final Future<List<Appointment>> future;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Appointment>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      if (snapshot.hasError) {
+        return ErrorView(message: '${snapshot.error}');
+      }
+      final list = snapshot.data ?? const <Appointment>[];
+      if (list.isEmpty) {
+        return const EmptyView(
+          icon: Icons.event_available_outlined,
+          message: 'No upcoming visits. Tap Book visit to schedule one.',
+        );
+      }
+      return Column(
+        children: [
+          for (final appointment in list.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(11),
+                          decoration: BoxDecoration(
+                            color: AppTheme.mint.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.event_rounded,
+                            color: AppTheme.navy,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                appointment.doctorName,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${AppDates.relativeDay(appointment.scheduledAt)}'
+                                ' · ${AppDates.time(appointment.scheduledAt)}',
+                                style: const TextStyle(
+                                  color: AppTheme.teal,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (appointment.hospitalName != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  appointment.hospitalName!,
+                                  style:
+                                      Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppTheme.teal,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
 }
 
 class _CareCard extends StatelessWidget {
