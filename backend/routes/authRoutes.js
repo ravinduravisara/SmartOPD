@@ -7,6 +7,7 @@ router.post('/register', controller.register);
 router.post('/verify-email', controller.verifyEmail);
 router.post('/resend-verification', controller.resendVerification);
 router.post('/login', controller.login);
+router.post('/google', controller.googleLogin);
 router.post('/forgot-password', controller.forgotPassword);
 router.post('/reset-password', controller.resetPassword);
 router.get('/me', requireAuth, controller.getProfile);

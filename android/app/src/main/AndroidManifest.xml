@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required to reach the SmartOPD API and Google Sign-In. Flutter only
+         injects this into debug/profile builds, so release builds need it here. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="SmartOPD"
         android:name="${applicationName}"

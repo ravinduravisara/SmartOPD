@@ -14,6 +14,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> restoreSession() => _run(service.restoreSession);
   Future<void> login(String email, String password) =>
       _run(() => service.login(email: email, password: password));
+  Future<void> signInWithGoogle() => _run(service.signInWithGoogle);
   Future<void> register(
     String name,
     String email,

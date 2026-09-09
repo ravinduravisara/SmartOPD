@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/dependent.dart';
 import '../models/user.dart';
@@ -12,6 +13,7 @@ class AuthService {
   final ApiService _api;
   SharedPreferences? _preferences;
   User? currentUser;
+  Future<void>? _googleInitialization;
 
   Future<SharedPreferences> get _prefs async =>
       _preferences ??= await SharedPreferences.getInstance();
@@ -66,6 +68,92 @@ class AuthService {
       body: {'email': email, 'password': password},
     );
     return _saveSession(data);
+  }
+
+  /// Must be the OAuth client of type **Web application**, not the Android
+  /// client. Google rejects an Android client here with error 28444
+  /// ("Developer console is not set up correctly"). The backend verifies the
+  /// ID token against this same value, so both must be kept in sync.
+  static const googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue:
+        '1007022956651-togo3c6g08jj7jqp1mn2hbdq99f374e3.apps.googleusercontent.com',
+  );
+
+  Future<void> _initializeGoogle() async {
+    final pending = _googleInitialization ??= GoogleSignIn.instance.initialize(
+      serverClientId: googleServerClientId,
+    );
+    try {
+      await pending;
+    } catch (_) {
+      // A failed initialization must not be cached, or every later attempt
+      // would replay the same failure without retrying.
+      _googleInitialization = null;
+      rethrow;
+    }
+  }
+
+  Future<User> signInWithGoogle() async {
+    await _initializeGoogle();
+    try {
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {
+        // Clearing the previously selected account is best effort.
+      }
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception(
+          'Google did not return an ID token. Check that '
+          'GOOGLE_SERVER_CLIENT_ID is the OAuth "Web application" client ID '
+          'for this Google Cloud project.',
+        );
+      }
+      final data = await _api.request(
+        'POST',
+        '/auth/google',
+        body: {'idToken': idToken},
+      );
+      return _saveSession(data);
+    } on GoogleSignInException catch (error) {
+      throw Exception(_googleErrorMessage(error));
+    }
+  }
+
+  String _googleErrorMessage(GoogleSignInException error) {
+    // Android's Credential Manager reports configuration problems as a plain
+    // cancellation, so a real cancel cannot be told apart from a bad setup.
+    const setup =
+        'Check that GOOGLE_SERVER_CLIENT_ID is the "Web application" OAuth '
+        'client ID, and that an Android OAuth client exists for package '
+        '"com.smartopd.smart_opd" with this build\'s signing SHA-1 in the '
+        'same Google Cloud project.';
+    // Play Services reports the OAuth setup failure as a bare 28444 with no
+    // matching plugin code, so match on the message rather than the code.
+    if (error.description?.contains('28444') ?? false) {
+      return 'Google rejected the sign-in: the server client ID is not an '
+          'OAuth "Web application" client. $setup';
+    }
+    if (error.description?.contains('28404') ?? false) {
+      return 'Google could not issue an ID token: this app is not registered. '
+          'Add an Android OAuth client for package "com.smartopd.smart_opd" '
+          'with this build\'s signing SHA-1, in the same Google Cloud project '
+          'as the web client.';
+    }
+    return switch (error.code) {
+      GoogleSignInExceptionCode.canceled =>
+        'Google sign-in did not complete. If you did not cancel it, the OAuth '
+            'setup is wrong. $setup',
+      GoogleSignInExceptionCode.clientConfigurationError ||
+      GoogleSignInExceptionCode.providerConfigurationError =>
+        'Google sign-in is misconfigured. $setup '
+            '(${error.description ?? error.code.name})',
+      _ =>
+        'Google sign-in failed (${error.code.name}): '
+            '${error.description ?? 'Please try again.'}',
+    };
   }
 
   Future<void> logout() async {

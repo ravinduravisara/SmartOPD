@@ -1,13 +1,16 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { sendOtpEmail, isConfigured: emailConfigured } = require('../services/emailService');
 
 const jwtSecret = () => process.env.JWT_SECRET;
+const googleClient = new OAuth2Client();
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validPassword = (password) => typeof password === 'string' && password.length >= 8 && password.length <= 128 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
+const validProfilePicture = (value) => (String(value).startsWith('data:image/') && String(value).length <= 4500000) || (/^https:\/\/[^\s]+$/.test(value) && String(value).length <= 2048);
 const makeCode = () => String(crypto.randomInt(100000, 1000000));
 const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex');
 const codeFields = (code) => ({ hash: hashCode(code), expires: new Date(Date.now() + 10 * 60 * 1000) });
@@ -77,6 +80,37 @@ async function login(req, res, next) {
 	} catch (error) { next(error); }
 }
 
+async function googleLogin(req, res, next) {
+	try {
+		const clientId = process.env.GOOGLE_SERVER_CLIENT_ID;
+		if (!clientId) return res.status(503).json({ message: 'Google sign-in is not configured on the server' });
+		if (typeof req.body.idToken !== 'string' || !req.body.idToken) return res.status(400).json({ message: 'Google ID token is required' });
+		let ticket;
+		try {
+			ticket = await googleClient.verifyIdToken({ idToken: req.body.idToken, audience: clientId });
+		} catch (_) {
+			return res.status(401).json({ message: 'Google ID token is invalid or does not match the configured client ID' });
+		}
+		const payload = ticket.getPayload();
+		if (!payload?.email || payload.email_verified !== true) return res.status(401).json({ message: 'Google account email is not verified' });
+		const email = normalizeEmail(payload.email);
+		let user = await User.findOne({ email }).select('+password +tokenVersion');
+		if (!user) {
+			user = new User({
+				name: payload.name || email.split('@')[0],
+				email,
+				password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12),
+				profilePicture: validProfilePicture(payload.picture) ? payload.picture : undefined,
+				isEmailVerified: true
+			});
+		} else if (!user.isEmailVerified) {
+			user.isEmailVerified = true;
+		}
+		await user.save();
+		return res.json({ user: publicUser(user), token: issueToken(user) });
+	} catch (error) { next(error); }
+}
+
 async function getProfile(req, res, next) {
 	try { const user = await User.findById(req.user.id); if (!user) return res.status(404).json({ message: 'User not found' }); return res.json({ user: publicUser(user) }); } catch (error) { next(error); }
 }
@@ -86,7 +120,7 @@ async function updateProfile(req, res, next) {
 		const allowed = ['name', 'phone', 'dateOfBirth', 'gender', 'profilePicture'];
 		const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
 		if (updates.name !== undefined && (!String(updates.name).trim() || String(updates.name).length > 100)) return res.status(400).json({ message: 'Name is required and must be 100 characters or fewer' });
-		if (updates.profilePicture !== undefined && updates.profilePicture !== null && (!String(updates.profilePicture).startsWith('data:image/') || String(updates.profilePicture).length > 4500000)) return res.status(400).json({ message: 'Profile picture must be a valid image smaller than 3 MB' });
+		if (updates.profilePicture !== undefined && updates.profilePicture !== null && !validProfilePicture(updates.profilePicture)) return res.status(400).json({ message: 'Profile picture must be an https URL or an image smaller than 3 MB' });
 		const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true });
 		return res.json({ user: publicUser(user) });
 	} catch (error) { next(error); }
@@ -124,4 +158,4 @@ async function logout(req, res, next) {
 	try { await User.findByIdAndUpdate(req.user.id, { $inc: { tokenVersion: 1 } }); res.json({ message: 'Logged out successfully' }); } catch (error) { next(error); }
 }
 
-module.exports = { register, verifyEmail, resendVerification, login, getProfile, updateProfile, forgotPassword, resetPassword, logout };
+module.exports = { register, verifyEmail, resendVerification, login, googleLogin, getProfile, updateProfile, forgotPassword, resetPassword, logout };
