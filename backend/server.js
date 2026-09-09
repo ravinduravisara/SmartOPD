@@ -26,6 +26,8 @@ app.get('/health', (req, res) => res.json({
 	email: isEmailConfigured() ? 'configured' : 'not_configured'
 }));
 app.use('/api/auth', requireDatabase, require('./routes/authRoutes'));
+app.use('/api/hospitals', requireDatabase, requireAuth, require('./routes/hospitalRoutes'));
+app.use('/api/doctors', requireDatabase, requireAuth, require('./routes/doctorRoutes'));
 app.use('/api/dependents', requireDatabase, requireAuth, require('./routes/dependentRoutes'));
 app.use('/api/appointments', requireDatabase, requireAuth, require('./routes/appointmentRoutes'));
 app.use((error, req, res, next) => {

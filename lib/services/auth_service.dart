@@ -1,7 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../models/appointment.dart';
 import '../models/dependent.dart';
+import '../models/doctor.dart';
+import '../models/hospital.dart';
 import '../models/user.dart';
 import 'api_service.dart';
 
@@ -26,8 +29,11 @@ class AuthService {
       currentUser = User.fromJson(
         (await _api.request('GET', '/auth/me'))['user'] as Map<String, dynamic>,
       );
-    } catch (_) {
-      await logout();
+    } on ApiException catch (error) {
+      // Only a rejected token means the session is really gone. A server that
+      // is down or unreachable must not throw the login away.
+      if (error.statusCode == 401 || error.statusCode == 403) await logout();
+      rethrow;
     }
   }
 
@@ -215,21 +221,131 @@ class AuthService {
   Future<void> removeDependent(String id) async =>
       _api.request('DELETE', '/dependents/$id');
 
-  Future<Map<String, dynamic>> bookAppointment({
+  // --- Hospitals, departments and doctors ---
+
+  Future<List<Hospital>> getHospitals({String? query, String? city}) async {
+    final params = <String, String>{
+      if (query != null && query.isNotEmpty) 'q': query,
+      if (city != null && city.isNotEmpty) 'city': city,
+    };
+    final data = await _api.request('GET', '/hospitals${_query(params)}');
+    return (data['hospitals'] as List)
+        .map((item) => Hospital.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<String>> getHospitalCities() async =>
+      ((await _api.request('GET', '/hospitals/cities'))['cities'] as List)
+          .map((item) => item.toString())
+          .toList();
+
+  Future<HospitalDetails> getHospital(String id) async {
+    final data = await _api.request('GET', '/hospitals/$id');
+    return HospitalDetails(
+      hospital: Hospital.fromJson(data['hospital'] as Map<String, dynamic>),
+      departments: (data['departments'] as List)
+          .map((item) => Department.fromJson(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  Future<List<Doctor>> getDoctors({
+    String? hospitalId,
+    String? departmentId,
+    String? query,
+  }) async {
+    final params = <String, String>{
+      if (hospitalId != null) 'hospital': hospitalId,
+      if (departmentId != null) 'department': departmentId,
+      if (query != null && query.isNotEmpty) 'q': query,
+    };
+    final data = await _api.request('GET', '/doctors${_query(params)}');
+    return (data['doctors'] as List)
+        .map((item) => Doctor.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Doctor> getDoctor(String id) async => Doctor.fromJson(
+    (await _api.request('GET', '/doctors/$id'))['doctor']
+        as Map<String, dynamic>,
+  );
+
+  /// Bookable times for one day. [excludeAppointmentId] keeps an appointment's
+  /// own slot in the list while it is being rescheduled.
+  Future<List<DateTime>> getDoctorSlots(
+    String doctorId,
+    DateTime day, {
+    String? excludeAppointmentId,
+  }) async {
+    final params = <String, String>{
+      'date': _dayParam(day),
+      if (excludeAppointmentId != null) 'exclude': excludeAppointmentId,
+    };
+    final data = await _api.request(
+      'GET',
+      '/doctors/$doctorId/slots${_query(params)}',
+    );
+    return (data['slots'] as List)
+        .map((item) => DateTime.parse(item.toString()).toLocal())
+        .toList();
+  }
+
+  // --- Appointments ---
+
+  Future<List<Appointment>> getAppointments({String? scope}) async {
+    final data = await _api.request(
+      'GET',
+      '/appointments${_query({if (scope != null) 'scope': scope})}',
+    );
+    return (data['appointments'] as List)
+        .map((item) => Appointment.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Appointment> bookAppointment({
     required String doctorId,
     required DateTime scheduledAt,
     String? dependentId,
     String? reason,
-  }) => _api.request(
-    'POST',
-    '/appointments',
-    body: {
-      'doctor': doctorId,
-      'scheduledAt': scheduledAt.toIso8601String(),
-      if (dependentId != null) 'dependent': dependentId,
-      if (reason != null) 'reason': reason,
-    },
+  }) async => Appointment.fromJson(
+    (await _api.request(
+          'POST',
+          '/appointments',
+          body: {
+            'doctor': doctorId,
+            'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+            if (dependentId != null) 'dependent': dependentId,
+            if (reason != null && reason.isNotEmpty) 'reason': reason,
+          },
+        ))['appointment']
+        as Map<String, dynamic>,
   );
+
+  Future<Appointment> cancelAppointment(String id) async => Appointment.fromJson(
+    (await _api.request('PATCH', '/appointments/$id/cancel'))['appointment']
+        as Map<String, dynamic>,
+  );
+
+  Future<Appointment> rescheduleAppointment(
+    String id,
+    DateTime scheduledAt,
+  ) async => Appointment.fromJson(
+    (await _api.request(
+          'PATCH',
+          '/appointments/$id/reschedule',
+          body: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
+        ))['appointment']
+        as Map<String, dynamic>,
+  );
+
+  static String _dayParam(DateTime day) =>
+      '${day.year.toString().padLeft(4, '0')}-'
+      '${day.month.toString().padLeft(2, '0')}-'
+      '${day.day.toString().padLeft(2, '0')}';
+
+  static String _query(Map<String, String> params) => params.isEmpty
+      ? ''
+      : '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
 
   Future<User> _saveSession(Map<String, dynamic> data) async {
     _api.token = data['token'] as String;
