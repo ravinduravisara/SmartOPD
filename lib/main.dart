@@ -33,9 +33,14 @@ class _SmartOpdAppState extends State<SmartOpdApp> {
     debugShowCheckedModeBanner: false,
     title: 'SmartOPD',
     theme: AppTheme.light,
-    home: auth.user == null
-        ? AuthScreen(auth: auth, onChanged: () => setState(() {}))
-        : HomeScreen(auth: auth, onChanged: () => setState(() {})),
+    // Without this the provider's `loading` and `error` never reach the UI, so
+    // a failed sign-in looks like the button simply did nothing.
+    home: ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) => auth.user == null
+          ? AuthScreen(auth: auth, onChanged: () => setState(() {}))
+          : HomeScreen(auth: auth, onChanged: () => setState(() {})),
+    ),
   );
 }
 
@@ -152,6 +157,18 @@ class _AuthScreenState extends State<AuthScreen> {
                               : Text(register ? 'Create account' : 'Log in'),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton.icon(
+                          onPressed: widget.auth.loading
+                              ? null
+                              : _signInWithGoogle,
+                          icon: const Icon(Icons.g_mobiledata, size: 28),
+                          label: const Text('Continue with Google'),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       Center(
                         child: TextButton(
@@ -231,6 +248,11 @@ class _AuthScreenState extends State<AuthScreen> {
       });
       _showMessage('A password reset code was sent to your email.');
     }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    await widget.auth.signInWithGoogle();
+    if (mounted && widget.auth.user != null) widget.onChanged();
   }
 
   bool _isValidEmail(String value) =>
@@ -919,6 +941,9 @@ class _ProfileAvatar extends StatelessWidget {
           image = null;
         }
       }
+    } else if (source != null && source.startsWith('https://')) {
+      // Google accounts arrive with a hosted avatar URL rather than a data URI.
+      image = NetworkImage(source);
     }
     final name = user?.name.trim() ?? '';
     return CircleAvatar(
