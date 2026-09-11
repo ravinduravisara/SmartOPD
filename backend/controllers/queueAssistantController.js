@@ -128,7 +128,12 @@ CURRENT PATIENT'S LIVE QUEUE DATA:
 
 	return `${basePrompt}
 
-QUEUE STATUS: The user does not have an active checked-in queue token right now. If they ask about their queue, casually let them know they can check in on the "My Visits" page.`;
+GENERAL HOSPITAL & OPD INFORMATION (User has no active token right now):
+- OPD Working Hours: Government OPD Clinics are open daily from 8:00 AM to 4:00 PM. Emergency care is available 24/7.
+- Doctor Availability: General and specialist doctors (Cardiology, OPD, Pediatrics, Orthopedics, etc.) consult patients during working hours.
+- How to Book an Appointment: Users can browse hospitals, select a doctor, and pick an available time slot on the "Hospitals / Book Appointment" page.
+- How to Get a Token: On the day of the appointment, when arriving at the hospital, users tap "Check In & Get Live Token" under My Appointments to receive their live queue token.
+- Instructions: Answer general questions (greetings, doctor availability, hospital hours, OPD process) warmly in the user's language (Tanglish/Tamil/English). If asked about their personal token, politely inform them that they don't have an active token yet and guide them to check in on their appointment day.`;
 }
 
 exports.askQueueAssistant = async (req, res) => {
