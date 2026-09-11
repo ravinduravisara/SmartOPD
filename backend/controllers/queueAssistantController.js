@@ -131,6 +131,97 @@ CURRENT PATIENT'S LIVE QUEUE DATA:
 QUEUE STATUS: The user does not have an active checked-in queue token right now. If they ask about their queue, casually let them know they can check in on the "My Visits" page.`;
 }
 
+// Intelligent natural language fallback for Tanglish, Tamil, and English OPD questions
+function generateSmartQueueReply(query, queueContext) {
+	const q = query.toLowerCase();
+
+	const isTanglishOrTamil = /[a-z]* (enna|eppadi|ethana|per|varum|kaat|iruk|vanakkam|sollu|paak|paath|panna|podhu)|வணக்கம்|எப்போது|டோக்கன்/.test(q) ||
+		q.includes('enna') || q.includes('ethana') || q.includes('eppadi') || q.includes('varum') || q.includes('vanakkam') || q.includes('kaattudhu') || q.includes('solli') || q.includes('badhil') || q.includes('kaattala') || q.includes('aagum') || q.includes('olunga');
+
+	// 1. Greetings
+	if (q.includes('hi') || q.includes('hello') || q.includes('hey') || q.includes('vanakkam') || q.includes('வணக்கம்')) {
+		if (isTanglishOrTamil) {
+			return queueContext
+				? `Vanakkam! 👋 Unga Token **${queueContext.tokenNumber}** (${queueContext.hospitalName}). Ungalukku munnadi ${queueContext.patientsAhead} patients irukaanga. Naan ungalukku eppadi help pannanum?`
+				: `Vanakkam! 👋 Naan unga SmartOPD Assistant. Ungalukku token, wait time, or queue status patri enna theriyanum? 😊`;
+		}
+		return queueContext
+			? `Hello! 👋 You have Token **${queueContext.tokenNumber}** for Dr. ${queueContext.doctorName}. How can I assist you with your OPD visit today? 😊`
+			: `Hello! 👋 I am your SmartOPD Queue Assistant. How can I help you today? 😊`;
+	}
+
+	// If no active queue token
+	if (!queueContext) {
+		if (isTanglishOrTamil) {
+			return `Ungalukku dharposedhu active check-in token edhum illai. Appointment page-la poyyi Check In panna live token tharappadum. 😊`;
+		}
+		return `You currently do not have an active checked-in token. Please check in from your appointments page when you arrive at the hospital. 😊`;
+	}
+
+	// 2. Token query ("What is my token?", "en token enna")
+	if (q.includes('token') && (q.includes('my') || q.includes('mine') || q.includes('en') || q.includes('ennoda') || q.includes('what') || q.includes('number'))) {
+		if (isTanglishOrTamil) {
+			return `Unga Live OPD Token number **${queueContext.tokenNumber}** (${queueContext.hospitalName} - ${queueContext.doctorName}).`;
+		}
+		return `Your active digital OPD token number is **${queueContext.tokenNumber}** at ${queueContext.hospitalName} for Dr. ${queueContext.doctorName}.`;
+	}
+
+	// 3. Current token serving ("What is current token?", "now serving", "ipoh ethana token")
+	if (q.includes('current') || q.includes('now serving') || q.includes('ipoh') || q.includes('ippo') || q.includes('podhu')) {
+		if (isTanglishOrTamil) {
+			return queueContext.currentToken && queueContext.currentToken !== 'None'
+				? `Dharposedhu Doctor paarthukondirukkum token: **${queueContext.currentToken}**. Unga token: **${queueContext.tokenNumber}**.`
+				: `Doctor innum token call panna thuvangavillai. Unga token **${queueContext.tokenNumber}** waiting list-la irukku.`;
+		}
+		return queueContext.currentToken && queueContext.currentToken !== 'None'
+			? `The doctor is currently serving Token **${queueContext.currentToken}**. Your token is **${queueContext.tokenNumber}**.`
+			: `No token is currently called yet. Your Token **${queueContext.tokenNumber}** is ready in the waiting list.`;
+	}
+
+	// 4. Patients ahead ("How many patients ahead?", "ethana per ahead", "munnadi ethana")
+	if (q.includes('ahead') || q.includes('patients') || q.includes('ethana per') || q.includes('munnadi')) {
+		if (isTanglishOrTamil) {
+			return queueContext.patientsAhead === 0
+				? `Ungalukku munnadi yaarume illai! (` + (queueContext.status === 'CALLED' ? `Unga turn vandhachu, Consultation room-kku ponga! 🟢` : `Next turn ungala thaan கூப்பிடுவாங்க 🟢`) + `)`
+				: `Ungalukku munnadi **${queueContext.patientsAhead} patients** wait pannikitrukaanga. Est. wait time: ~${queueContext.estimatedWaitMinutes} mins.`;
+		}
+		return queueContext.patientsAhead === 0
+			? `There are **0 patients ahead of you**! You are next in line for consultation. 🟢`
+			: `There are currently **${queueContext.patientsAhead} patient(s) ahead of you** in the queue.`;
+	}
+
+	// 5. Wait time / ETA ("How long wait", "wait time", "eppadiku varum", "evvalavu neram")
+	if (q.includes('wait') || q.includes('time') || q.includes('long') || q.includes('neram') || q.includes('evvalavu')) {
+		if (isTanglishOrTamil) {
+			return queueContext.estimatedWaitMinutes === 0
+				? `Unga wait time ~0 mins! Ungalukku munnadi 0 patients, ready-a irunga. 🟢`
+				: `Unga ethirpaarkkappadum wait time sumaar **~${queueContext.estimatedWaitMinutes} nimidangal** (${queueContext.patientsAhead} patients ahead).`;
+		}
+		return queueContext.estimatedWaitMinutes === 0
+			? `Your estimated wait time is **0 minutes**! You are next to see the doctor.`
+			: `Your estimated wait time is approximately **~${queueContext.estimatedWaitMinutes} minutes** (${queueContext.patientsAhead} patients ahead).`;
+	}
+
+	// 6. Delay query ("delay", "late", "doctor late")
+	if (q.includes('delay') || q.includes('late') || q.includes('slow')) {
+		if (isTanglishOrTamil) {
+			return queueContext.isDelayed
+				? `Aam, Doctor dharposedhu siridhu neram extra eduthu paarthu kondirukkiraar. Porumaiyaaga irunga. ⚠️`
+				: `Illa, OPD queue normal speed-la dhaan poikitu irukku. No major delays detected! ✅`;
+		}
+		return queueContext.isDelayed
+			? `Yes, doctor consultation is currently taking slightly longer than usual. Please stay seated nearby. ⚠️`
+			: `No major delays detected! The OPD queue is moving normally. ✅`;
+	}
+
+	// Default intelligent response in user's language
+	if (isTanglishOrTamil) {
+		return `Unga Live OPD summary: Token **${queueContext.tokenNumber}** (${queueContext.hospitalName}), ${queueContext.patientsAhead} patients ahead, Est. Wait: ~${queueContext.estimatedWaitMinutes} mins. Mele ethavadhu kelvi irundha கேளுங்கள்! 😊`;
+	}
+
+	return `Here is your live OPD summary: Token **${queueContext.tokenNumber}** at ${queueContext.hospitalName}, ${queueContext.patientsAhead} patients ahead, Est. Wait: ~${queueContext.estimatedWaitMinutes} mins. Feel free to ask if you need more info! 😊`;
+}
+
 exports.askQueueAssistant = async (req, res) => {
 	try {
 		const { query } = req.body;
@@ -147,20 +238,19 @@ exports.askQueueAssistant = async (req, res) => {
 		const systemPrompt = buildSystemPrompt(queueContext);
 
 		let reply = '';
-		const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+		const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
 
 		for (const modelName of modelsToTry) {
 			try {
 				const model = genAI.getGenerativeModel({
 					model: modelName,
-					systemInstruction: { parts: [{ text: systemPrompt }] }
 				});
 
 				const result = await model.generateContent({
-					contents: [{ role: 'user', parts: [{ text: query }] }],
+					contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${query}` }] }],
 					generationConfig: {
 						maxOutputTokens: 250,
-						temperature: 0.8,
+						temperature: 0.7,
 					}
 				});
 
@@ -169,17 +259,12 @@ exports.askQueueAssistant = async (req, res) => {
 					if (reply) break;
 				}
 			} catch (mErr) {
-				console.warn(`Model ${modelName} attempt failed:`, mErr.message);
+				// Silently failover
 			}
 		}
 
 		if (!reply) {
-			// Fallback if AI service is temporarily unavailable
-			if (queueContext) {
-				reply = `You have Token ${queueContext.tokenNumber}. There are ${queueContext.patientsAhead} patients ahead of you, and estimated wait time is ~${queueContext.estimatedWaitMinutes} minutes. Currently serving Token ${queueContext.currentToken}.`;
-			} else {
-				reply = 'Hello! I am your SmartOPD Assistant. How can I help you with your hospital visit today? 😊';
-			}
+			reply = generateSmartQueueReply(query, queueContext);
 		}
 
 		// Build response
