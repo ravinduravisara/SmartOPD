@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'dart:io' show Platform;
 
 class ApiException implements Exception {
   const ApiException(this.message, this.statusCode);
@@ -23,10 +24,15 @@ class ApiService {
   final String baseUrl;
   String? token;
 
-  static String get _localApiBaseUrl =>
-      'http://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:3000/api';
+  static String get _localApiBaseUrl {
+    if (kIsWeb) {
+      return 'http://127.0.0.1:3000/api';
+    }
+    return 'http://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:3000/api';
+  }
 
   Future<Map<String, dynamic>> request(
+    
     String method,
     String path, {
     Map<String, dynamic>? body,

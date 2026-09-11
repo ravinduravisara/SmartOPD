@@ -79,6 +79,87 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ],
+          const SizedBox(height: 18),
+
+          // Live OPD Queue Preview Card (Module 3 Requirement)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.circle, color: Color(0xFF10B981), size: 8),
+                          SizedBox(width: 6),
+                          Text('LIVE QUEUE ACTIVE', style: TextStyle(color: Color(0xFF34D399), fontSize: 11, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const Text('General OPD', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Now Serving', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const SizedBox(height: 2),
+                        Text(
+                          data.hospital.name.contains('Colombo') ? 'A-101' : 'None',
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Patients Waiting', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const SizedBox(height: 2),
+                        Text(
+                          data.hospital.name.contains('Colombo') ? '2 Patients' : '0 Patients',
+                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Est. Wait Time', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const SizedBox(height: 2),
+                        Text(
+                          data.hospital.name.contains('Colombo') ? '~12 min' : '~0 min',
+                          style: const TextStyle(color: Color(0xFF34D399), fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: () => _openDoctors(title: 'All doctors'),

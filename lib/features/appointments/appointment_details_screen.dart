@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../models/appointment.dart';
 import '../../services/auth_service.dart';
+import '../../services/queue_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/error_widget.dart';
+import '../queue/queue_provider.dart';
+import '../queue/queue_screen.dart';
 import 'appointment_status_chip.dart';
 import 'book_appointment_screen.dart';
 
@@ -13,9 +16,11 @@ class AppointmentDetailsScreen extends StatefulWidget {
     super.key,
     required this.service,
     required this.appointment,
+    this.queueProvider,
   });
   final AuthService service;
   final Appointment appointment;
+  final QueueProvider? queueProvider;
 
   @override
   State<AppointmentDetailsScreen> createState() =>
@@ -202,10 +207,44 @@ class _AppointmentDetailsScreenState extends State<AppointmentDetailsScreen> {
             ErrorView(message: error!),
           ],
           const SizedBox(height: 22),
-          if (appointment.canModify) ...[
+          if (appointment.status == AppointmentStatus.booked) ...[
             SizedBox(
               height: 52,
               child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF059669)),
+                onPressed: working
+                    ? null
+                    : () async {
+                        setState(() => working = true);
+                        try {
+                          final navigator = Navigator.of(context);
+                          final qp = widget.queueProvider ?? QueueProvider(QueueService(widget.service.api));
+                          final success = await qp.checkIn(appointment.id);
+                          if (mounted) {
+                            setState(() {
+                              working = false;
+                              changed = true;
+                            });
+                            if (success) {
+                              navigator.push(
+                                MaterialPageRoute(builder: (_) => QueueScreen(provider: qp)),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) setState(() { working = false; error = '$e'; });
+                        }
+                      },
+                icon: const Icon(Icons.qr_code_2_rounded),
+                label: const Text('Check In & Get Live Token', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (appointment.canModify) ...[
+            SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
                 onPressed: working ? null : _reschedule,
                 icon: const Icon(Icons.edit_calendar_outlined),
                 label: const Text('Reschedule'),

@@ -6,6 +6,8 @@ const hospitalSchema = new mongoose.Schema({
 	address: { type: String, trim: true, maxlength: 240 },
 	phone: { type: String, trim: true, maxlength: 20 },
 	about: { type: String, trim: true, maxlength: 600 },
+	lat: { type: Number },
+	lng: { type: Number },
 	active: { type: Boolean, default: true }
 }, { timestamps: true });
 

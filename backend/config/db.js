@@ -1,4 +1,7 @@
-const dns = require('node:dns');
+const dns = require('dns');
+try {
+	dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch (_) {}
 const mongoose = require('mongoose');
 
 const dnsServers = (process.env.MONGO_DNS_SERVERS || '1.1.1.1,8.8.8.8')

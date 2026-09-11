@@ -12,6 +12,13 @@ import 'models/dependent.dart';
 import 'models/user.dart';
 import 'utils/date_utils.dart';
 import 'widgets/error_widget.dart';
+import 'services/queue_service.dart';
+import 'features/queue/queue_provider.dart';
+import 'features/queue/queue_screen.dart';
+import 'features/queue/queue_history_screen.dart';
+import 'features/queue/widgets/live_queue_home_card.dart';
+import 'features/queue_assistant/smart_queue_assistant_screen.dart';
+import 'features/notifications/notifications_screen.dart';
 
 void main() => runApp(const SmartOpdApp());
 
@@ -415,10 +422,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool editingProfile = false;
   bool savingProfile = false;
   String? pendingProfilePicture;
+  late final QueueProvider queueProvider;
 
   @override
   void initState() {
     super.initState();
+    queueProvider = QueueProvider(QueueService(widget.auth.service.api));
+    queueProvider.startLiveTracking();
     dependents = widget.auth.service.getDependents();
     upcomingAppointments = widget.auth.service.getAppointments(
       scope: 'upcoming',
@@ -427,6 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _reloadHome() => setState(() {
+    queueProvider.fetchActiveQueue();
     dependents = widget.auth.service.getDependents();
     upcomingAppointments = widget.auth.service.getAppointments(
       scope: 'upcoming',
@@ -445,7 +456,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openAppointments() async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AppointmentsScreen(service: widget.auth.service),
+        builder: (_) => AppointmentsScreen(
+          service: widget.auth.service,
+          queueProvider: queueProvider,
+        ),
       ),
     );
     if (changed == true && mounted) _reloadHome();
@@ -453,6 +467,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    queueProvider.stopLiveTracking();
     dependentName.dispose();
     dependentRelationship.dispose();
     editDependentName.dispose();
@@ -466,6 +481,41 @@ class _HomeScreenState extends State<HomeScreen> {
     appBar: AppBar(
       title: const _BrandLockup(compact: true),
       actions: [
+        ListenableBuilder(
+          listenable: queueProvider,
+          builder: (context, _) => Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(Icons.notifications_none_rounded),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => NotificationsScreen(provider: queueProvider),
+                    ),
+                  );
+                },
+              ),
+              if (queueProvider.unreadNotificationsCount > 0)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${queueProvider.unreadNotificationsCount}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
         IconButton(
           tooltip: 'Log out',
           onPressed: _logout,
@@ -493,13 +543,29 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
+          LiveQueueHomeCard(provider: queueProvider),
+          const SizedBox(height: 18),
           const _CareCard(),
           const SizedBox(height: 28),
           Text('Quick actions', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Row(
             children: [
+              Expanded(
+                child: _ActionTile(
+                  icon: Icons.confirmation_number_outlined,
+                  label: 'Live Queue',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => QueueScreen(provider: queueProvider),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: _ActionTile(
                   icon: Icons.calendar_month_outlined,
@@ -515,12 +581,38 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: _openAppointments,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionTile(
+                  icon: Icons.smart_toy_outlined,
+                  label: 'Queue AI',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SmartQueueAssistantScreen(
+                          provider: queueProvider,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: _ActionTile(
-                  icon: Icons.person_add_alt_1_outlined,
-                  label: 'Add family',
-                  onTap: _openDependentForm,
+                  icon: Icons.history_outlined,
+                  label: 'Queue History',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => QueueHistoryScreen(provider: queueProvider),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const Dependent = require('../models/Dependent');
 const Doctor = require('../models/Doctor');
+const Hospital = require('../models/Hospital');
+const Notification = require('../models/Notification');
+const { notifyPatientQueueUpdate } = require('../services/socketService');
 const { availableSlots } = require('../services/scheduleService');
 
 const isObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
@@ -58,7 +61,41 @@ async function create(req, res, next) {
 			durationMinutes: doctor.slotMinutes,
 			reason
 		});
-		res.status(201).json({ appointment: await appointment.populate(POPULATE) });
+
+		const populatedApp = await appointment.populate(POPULATE);
+
+		// Create in-app confirmation notification
+		try {
+			const formattedDate = new Date(when).toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric',
+				year: 'numeric'
+			});
+			const formattedTime = new Date(when).toLocaleTimeString('en-US', {
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+
+			const hospitalName = populatedApp.hospital?.name || 'Hospital';
+			const doctorName = doctor.name || 'Doctor';
+
+			const notification = await Notification.create({
+				userId: req.user.id,
+				appointmentId: appointment._id,
+				title: 'Appointment Confirmed 🎉',
+				message: `Your appointment with Dr. ${doctorName} at ${hospitalName} is booked for ${formattedDate} at ${formattedTime}.`,
+				type: 'APPOINTMENT_CONFIRMATION'
+			});
+
+			notifyPatientQueueUpdate(req.user.id, {
+				type: 'notification',
+				notification
+			});
+		} catch (notifErr) {
+			console.error('Failed to create appointment confirmation notification:', notifErr);
+		}
+
+		res.status(201).json({ appointment: populatedApp });
 	} catch (error) {
 		if (error.code === DUPLICATE_KEY) {
 			return res.status(409).json({ message: 'That time was just booked by someone else. Pick another slot.' });
@@ -114,7 +151,29 @@ async function cancel(req, res, next) {
 		appointment.status = 'cancelled';
 		appointment.cancelledAt = new Date();
 		await appointment.save();
-		res.json({ appointment: await appointment.populate(POPULATE) });
+
+		const populatedApp = await appointment.populate(POPULATE);
+
+		// Create in-app cancellation notification
+		try {
+			const doctorName = populatedApp.doctor?.name || 'Doctor';
+			const notification = await Notification.create({
+				userId: req.user.id,
+				appointmentId: appointment._id,
+				title: 'Appointment Cancelled',
+				message: `Your appointment with Dr. ${doctorName} has been cancelled.`,
+				type: 'APPOINTMENT_CANCELLED'
+			});
+
+			notifyPatientQueueUpdate(req.user.id, {
+				type: 'notification',
+				notification
+			});
+		} catch (notifErr) {
+			console.error('Failed to create cancellation notification:', notifErr);
+		}
+
+		res.json({ appointment: populatedApp });
 	} catch (error) { next(error); }
 }
 
@@ -140,7 +199,39 @@ async function reschedule(req, res, next) {
 		appointment.rescheduledFrom = appointment.scheduledAt;
 		appointment.scheduledAt = when;
 		await appointment.save();
-		res.json({ appointment: await appointment.populate(POPULATE) });
+
+		const populatedApp = await appointment.populate(POPULATE);
+
+		// Create in-app reschedule notification
+		try {
+			const formattedDate = new Date(when).toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric',
+				year: 'numeric'
+			});
+			const formattedTime = new Date(when).toLocaleTimeString('en-US', {
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+			const doctorName = doctor.name || 'Doctor';
+
+			const notification = await Notification.create({
+				userId: req.user.id,
+				appointmentId: appointment._id,
+				title: 'Appointment Rescheduled 🗓️',
+				message: `Your appointment with Dr. ${doctorName} has been rescheduled to ${formattedDate} at ${formattedTime}.`,
+				type: 'APPOINTMENT_RESCHEDULED'
+			});
+
+			notifyPatientQueueUpdate(req.user.id, {
+				type: 'notification',
+				notification
+			});
+		} catch (notifErr) {
+			console.error('Failed to create reschedule notification:', notifErr);
+		}
+
+		res.json({ appointment: populatedApp });
 	} catch (error) {
 		if (error.code === DUPLICATE_KEY) {
 			return res.status(409).json({ message: 'That time was just booked by someone else. Pick another slot.' });
