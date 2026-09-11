@@ -16,6 +16,8 @@ const HOSPITALS = [
 		city: 'Colombo',
 		address: 'Regent Street, Colombo 08',
 		phone: '+94112691111',
+		lat: 6.9271,
+		lng: 79.8612,
 		about: 'Tertiary care hospital with 24-hour emergency and specialist OPD clinics.',
 		departments: [
 			{
@@ -67,6 +69,8 @@ const HOSPITALS = [
 		city: 'Kandy',
 		address: 'William Gopallawa Mawatha, Kandy',
 		phone: '+94812233337',
+		lat: 7.2906,
+		lng: 80.6337,
 		about: 'Teaching hospital serving the central province with specialist clinics.',
 		departments: [
 			{
@@ -106,6 +110,8 @@ const HOSPITALS = [
 		city: 'Galle',
 		address: 'Hospital Road, Karapitiya, Galle',
 		phone: '+94912232276',
+		lat: 6.0535,
+		lng: 80.2210,
 		about: 'Regional hospital with outpatient specialist clinics and maternity care.',
 		departments: [
 			{

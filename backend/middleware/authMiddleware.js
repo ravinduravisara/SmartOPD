@@ -19,6 +19,7 @@ function requireAuth(req, res, next) {
 			.then((user) => {
 				if (!user || user.tokenVersion !== req.user.tokenVersion || !user.isEmailVerified) return res.status(401).json({ message: 'Session is invalid or expired' });
 				req.userRecord = user;
+				req.user = user;
 				next();
 			})
 			.catch(next);

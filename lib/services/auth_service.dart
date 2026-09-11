@@ -14,6 +14,7 @@ class AuthService {
       _preferences = preferences;
 
   final ApiService _api;
+  ApiService get api => _api;
   SharedPreferences? _preferences;
   User? currentUser;
   Future<void>? _googleInitialization;

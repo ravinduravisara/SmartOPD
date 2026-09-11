@@ -6,13 +6,15 @@ import '../../services/auth_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../queue/queue_provider.dart';
 import 'appointment_details_screen.dart';
 import 'appointment_status_chip.dart';
 
 /// Upcoming visits and full appointment history.
 class AppointmentsScreen extends StatefulWidget {
-  const AppointmentsScreen({super.key, required this.service});
+  const AppointmentsScreen({super.key, required this.service, this.queueProvider});
   final AuthService service;
+  final QueueProvider? queueProvider;
 
   @override
   State<AppointmentsScreen> createState() => _AppointmentsScreenState();
@@ -40,6 +42,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         builder: (_) => AppointmentDetailsScreen(
           service: widget.service,
           appointment: appointment,
+          queueProvider: widget.queueProvider,
         ),
       ),
     );

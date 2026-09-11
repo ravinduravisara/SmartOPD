@@ -25,11 +25,18 @@ app.get('/health', (req, res) => res.json({
 	database: databaseReady ? 'connected' : 'disconnected',
 	email: isEmailConfigured() ? 'configured' : 'not_configured'
 }));
+const http = require('http');
+const { initSocket } = require('./services/socketService');
+const { startReminderScheduler } = require('./services/reminderService');
+
 app.use('/api/auth', requireDatabase, require('./routes/authRoutes'));
 app.use('/api/hospitals', requireDatabase, requireAuth, require('./routes/hospitalRoutes'));
 app.use('/api/doctors', requireDatabase, requireAuth, require('./routes/doctorRoutes'));
 app.use('/api/dependents', requireDatabase, requireAuth, require('./routes/dependentRoutes'));
 app.use('/api/appointments', requireDatabase, requireAuth, require('./routes/appointmentRoutes'));
+app.use('/api/queues', requireDatabase, requireAuth, require('./routes/queueRoutes'));
+app.use('/api/notifications', requireDatabase, requireAuth, require('./routes/notificationRoutes'));
+
 app.use((error, req, res, next) => {
 	if (error.code === 11000) return res.status(409).json({ message: 'A record with that value already exists' });
 	console.error(error);
@@ -42,7 +49,10 @@ if (require.main === module) {
 		.then(() => {
 			databaseReady = true;
 			app.locals.databaseReady = true;
-			app.listen(port, () => console.log(`SmartOPD API listening on port ${port}`));
+			const server = http.createServer(app);
+			initSocket(server);
+			startReminderScheduler();
+			server.listen(port, () => console.log(`SmartOPD API listening on port ${port}`));
 		})
 		.catch((error) => {
 			console.error('MongoDB connection failed; server not started', error.message);
@@ -51,3 +61,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+
