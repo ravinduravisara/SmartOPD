@@ -49,7 +49,10 @@ void main() {
       MaterialApp(home: AdminDashboardScreen(auth: auth)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Admin dashboard'), findsOneWidget);
+    expect(find.text('SmartOPD Portal'), findsOneWidget);
+    expect(find.text('Patient Flow Today'), findsOneWidget);
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
     expect(find.text('admin@example.com'), findsOneWidget);
     await tester.tap(find.text('Create new admin'));
     await tester.pumpAndSettle();
@@ -59,16 +62,16 @@ void main() {
     await tester.enterText(fields.at(2), 'Strong-Pass123!');
     await tester.enterText(fields.at(3), 'wrong');
     await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Create admin'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Create admin'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create admin'));
     await tester.pumpAndSettle();
     expect(find.text('Passwords do not match'), findsOneWidget);
     expect(api.created, isNull);
     await tester.enterText(fields.at(3), 'Strong-Pass123!');
     await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Create admin'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Create admin'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create admin'));
     await tester.pumpAndSettle();
     expect(api.created?['email'], 'second@example.com');
@@ -77,4 +80,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-
