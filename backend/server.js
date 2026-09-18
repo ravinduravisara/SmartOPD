@@ -30,6 +30,7 @@ const { initSocket } = require('./services/socketService');
 const { startReminderScheduler } = require('./services/reminderService');
 
 app.use('/api/auth', requireDatabase, require('./routes/authRoutes'));
+app.use('/api/admin', requireDatabase, requireAuth, require('./routes/adminRoutes'));
 app.use('/api/hospitals', requireDatabase, requireAuth, require('./routes/hospitalRoutes'));
 app.use('/api/doctors', requireDatabase, requireAuth, require('./routes/doctorRoutes'));
 app.use('/api/dependents', requireDatabase, requireAuth, require('./routes/dependentRoutes'));
