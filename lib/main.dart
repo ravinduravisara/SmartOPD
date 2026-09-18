@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'config/theme.dart';
+import 'features/admin/admin_dashboard_screen.dart';
 import 'features/appointments/appointments_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/hospitals/hospitals_screen.dart';
@@ -51,6 +52,8 @@ class _SmartOpdAppState extends State<SmartOpdApp> {
       listenable: auth,
       builder: (context, _) => auth.user == null
           ? AuthScreen(auth: auth, onChanged: () => setState(() {}))
+          : auth.user!.role == 'admin'
+          ? AdminDashboardScreen(auth: auth)
           : HomeScreen(auth: auth, onChanged: () => setState(() {})),
     ),
   );
