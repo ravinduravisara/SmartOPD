@@ -1,6 +1,12 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
+import '../../config/theme.dart';
 import '../../models/user.dart';
+import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
+import '../../widgets/loading.dart';
 import '../auth/providers/auth_provider.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -13,8 +19,12 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _tab = 0;
-  static const _navy = Color(0xFF102F4F);
-  static const _muted = Color(0xFF7C8DA5);
+
+  /// Status hues that have to stay apart from each other and from the teal.
+  static const _flow = Color(0xFF438AF0);
+  static const _good = Color(0xFF10AD7C);
+  static const _bad = Color(0xFFEF6D83);
+
   List<User> _admins = [];
   bool _loading = true;
   bool _creating = false;
@@ -112,236 +122,315 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.auth.user?.role != 'admin') {
-      return const Scaffold(
+      return const GlassScaffold(
+        appBar: false,
         body: Center(child: Text('Administrator access required')),
       );
     }
-    return Theme(
-      data: Theme.of(context).copyWith(
-        scaffoldBackgroundColor: const Color(0xFFF3F7FC),
-        colorScheme: Theme.of(context).colorScheme.copyWith(primary: _navy),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: _navy,
-          elevation: 0,
-        ),
+    return GlassScaffold(
+      titleWidget: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SmartOPD Portal',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.navy,
+              letterSpacing: -0.3,
+            ),
+          ),
+          SizedBox(height: 2),
+          Text(
+            'Hospital administration',
+            style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+          ),
+        ],
       ),
-      child: Scaffold(
-        appBar: AppBar(
-          toolbarHeight: 76,
-          title: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'SmartOPD Portal',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+      actions: [
+        PopupMenuButton<String>(
+          tooltip: 'Administrator account',
+          onSelected: (value) {
+            if (value == 'logout') {
+              widget.auth.logout();
+            } else {
+              setState(() => _tab = 4);
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(
+              value: 'admins',
+              child: Text('Manage administrators'),
+            ),
+            PopupMenuItem(
+              value: 'logout',
+              enabled: !_saving && !widget.auth.loading,
+              child: const Text('Log out'),
+            ),
+          ],
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppTheme.teal, AppTheme.navy],
               ),
-              SizedBox(height: 5),
-              Text(
-                'Hospital administration',
-                style: TextStyle(fontSize: 12, color: _muted),
+              border: Border.all(color: AppTheme.glassBorder),
+            ),
+            child: const Center(
+              child: Text(
+                'A',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ],
+            ),
           ),
-          actions: [
-            PopupMenuButton<String>(
-              tooltip: 'Administrator account',
-              onSelected: (value) {
-                if (value == 'logout') {
-                  widget.auth.logout();
-                } else {
-                  setState(() => _tab = 4);
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'admins',
-                  child: Text('Manage administrators'),
-                ),
-                PopupMenuItem(
-                  value: 'logout',
-                  enabled: !_saving && !widget.auth.loading,
-                  child: const Text('Log out'),
-                ),
-              ],
-              icon: const CircleAvatar(
-                radius: 18,
-                backgroundColor: Color(0xFF215780),
-                child: Text(
-                  'A',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: _saving
-              ? null
-              : (index) => setState(() => _tab = index),
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFE7F0FF),
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              label: 'Appts',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.format_list_bulleted),
-              label: 'Queue',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              label: 'Doctors',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              label: 'More',
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(18),
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: _tab == 0
-                          ? _overview()
-                          : _tab == 4
-                          ? _administrators()
-                          : [
-                              _panel(
-                                Column(
-                                  children: [
-                                    const Icon(
-                                      Icons.construction_outlined,
-                                      size: 36,
-                                      color: _muted,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      [
-                                        '',
-                                        'Appointments',
-                                        'Queue management',
-                                        'Doctors',
-                                      ][_tab],
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: _navy,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'This admin section will be added in the next stage.',
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
+        const SizedBox(width: 8),
+      ],
+      bottomNavigationBar: _navigation(),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        // Keeps the spinner clear of the translucent app bar.
+        edgeOffset: glassTopInset(context),
+        color: AppTheme.teal,
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            18,
+            18 + glassTopInset(context),
+            18,
+            110,
+          ),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _tab == 0
+                      ? _overview()
+                      : _tab == 4
+                      ? _administrators()
+                      : [
+                          GlassSurface(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              children: [
+                                _iconChip(
+                                  Icons.construction_outlined,
+                                  AppTheme.teal,
+                                  size: 52,
                                 ),
-                              ),
-                            ],
-                    ),
-                  ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  [
+                                    '',
+                                    'Appointments',
+                                    'Queue management',
+                                    'Doctors',
+                                  ][_tab],
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.navy,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'This admin section will be added in the next stage.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _panel(Widget child) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE1E8F0)),
+  /// Frosted bottom bar: content scrolls behind it, so it gets its own blur.
+  Widget _navigation() => ClipRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+        ),
+        child: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            backgroundColor: const Color(0x73FFFFFF),
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            indicatorColor: AppTheme.teal.withValues(alpha: 0.16),
+            indicatorShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            iconTheme: WidgetStateProperty.resolveWith(
+              (states) => IconThemeData(
+                size: 22,
+                color: states.contains(WidgetState.selected)
+                    ? AppTheme.teal
+                    : AppTheme.textMuted,
+              ),
+            ),
+            labelTextStyle: WidgetStateProperty.resolveWith(
+              (states) => TextStyle(
+                fontSize: 11,
+                fontWeight: states.contains(WidgetState.selected)
+                    ? FontWeight.w700
+                    : FontWeight.w500,
+                color: states.contains(WidgetState.selected)
+                    ? AppTheme.teal
+                    : AppTheme.textMuted,
+              ),
+            ),
+          ),
+          child: NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: _saving
+                ? null
+                : (index) => setState(() => _tab = index),
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.grid_view_outlined),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined),
+                label: 'Appts',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.format_list_bulleted),
+                label: 'Queue',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.people_outline),
+                label: 'Doctors',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                label: 'More',
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
-    child: child,
+  );
+
+  /// Tinted square holding an icon — the pattern every status colour uses.
+  Widget _iconChip(IconData icon, Color color, {double size = 38}) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(size / 2.8),
+      border: Border.all(color: color.withValues(alpha: 0.45)),
+    ),
+    child: Icon(icon, color: color, size: size * 0.52),
   );
 
   List<Widget> _overview() => [
-    Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: const Column(
+    const GlassHeroSurface(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Hello, Administrator',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 21,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
             ),
           ),
-          SizedBox(height: 5),
+          SizedBox(height: 6),
           Text(
             'General operations at a glance',
-            style: TextStyle(color: Color(0xFFCCD9E8), fontSize: 12),
+            style: TextStyle(color: Color(0xCCD9F2EE), fontSize: 12.5),
           ),
         ],
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: 18),
     const Text(
       'DASHBOARD PREVIEW ? SAMPLE DATA',
-      style: TextStyle(fontSize: 10, color: _muted, letterSpacing: 1),
+      style: TextStyle(
+        fontSize: 10,
+        color: AppTheme.textMuted,
+        letterSpacing: 1,
+        fontWeight: FontWeight.w600,
+      ),
     ),
     const SizedBox(height: 10),
     Row(
       children: [
         Expanded(
-          child: _metric('342', "Today's patients", const Color(0xFF438AF0)),
+          child: _metric(
+            '342',
+            "Today's patients",
+            _flow,
+            Icons.groups_outlined,
+          ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: _metric('67', 'Waiting', _navy)),
+        Expanded(
+          child: _metric(
+            '67',
+            'Waiting',
+            AppTheme.navy,
+            Icons.hourglass_bottom_rounded,
+          ),
+        ),
       ],
     ),
     const SizedBox(height: 12),
     Row(
       children: [
-        Expanded(child: _metric('245', 'Completed', const Color(0xFF10AD7C))),
+        Expanded(
+          child: _metric(
+            '245',
+            'Completed',
+            _good,
+            Icons.check_circle_outline_rounded,
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _metric('18', 'No-shows', const Color(0xFFEF6D83))),
+        Expanded(
+          child: _metric('18', 'No-shows', _bad, Icons.event_busy_outlined),
+        ),
       ],
     ),
     const SizedBox(height: 16),
-    _panel(
-      Column(
+    GlassSurface(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Patient Flow Today',
-            style: TextStyle(
-              color: _navy,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 4),
           const Text(
             'Hourly arrivals & consultations',
-            style: TextStyle(color: _muted, fontSize: 11),
+            style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
           ),
           const SizedBox(height: 20),
           Semantics(
@@ -358,11 +447,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Container(
-                            width: 24,
+                            width: 26,
                             height: [38.0, 57.0, 90.0, 71.0, 104.0, 123.0][i],
                             decoration: BoxDecoration(
-                              color: const Color(0xFFBFDCF9),
-                              borderRadius: BorderRadius.circular(4),
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  AppTheme.teal.withValues(alpha: 0.85),
+                                  AppTheme.mint.withValues(alpha: 0.55),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: AppTheme.glassBorder),
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -375,7 +472,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               '12:00',
                               '13:00',
                             ][i],
-                            style: const TextStyle(fontSize: 10, color: _muted),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppTheme.textMuted,
+                            ),
                           ),
                         ],
                       ),
@@ -388,63 +488,71 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     ),
     const SizedBox(height: 16),
-    _panel(
-      Column(
+    GlassSurface(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Status',
-            style: TextStyle(
-              color: _navy,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
-          ),
+          Text('Quick Status', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
-          _status(
-            'Active Queue Monitor',
-            'Normal (18m wait)',
-            const Color(0xFF17A576),
-          ),
-          const Divider(height: 24, color: Color(0xFFEDF1F6)),
-          _status('On-Duty Doctors', '31 of 42 available', _navy),
+          _status('Active Queue Monitor', 'Normal (18m wait)', _good),
+          const Divider(height: 24, color: AppTheme.glassBorder, thickness: 1),
+          _status('On-Duty Doctors', '31 of 42 available', AppTheme.navy),
         ],
       ),
     ),
   ];
 
-  Widget _metric(String value, String label, Color color) => _panel(
-    Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-          ),
+  Widget _metric(String value, String label, Color color, IconData icon) =>
+      GlassSurface(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _iconChip(icon, color, size: 34),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
-      ],
-    ),
-  );
+      );
 
   Widget _status(String label, String value, Color color) => Row(
     children: [
       Expanded(
-        child: Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
+        child: Text(
+          label,
+          style: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
+        ),
       ),
       const SizedBox(width: 8),
       Flexible(
-        child: Text(
-          value,
-          textAlign: TextAlign.end,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+          ),
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
@@ -452,14 +560,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   );
 
   List<Widget> _administrators() => [
-    const Text(
-      'Administrators',
-      style: TextStyle(color: _navy, fontSize: 24, fontWeight: FontWeight.w700),
-    ),
+    Text('Administrators', style: Theme.of(context).textTheme.headlineSmall),
     const SizedBox(height: 8),
-    const Text(
+    Text(
       'Manage access to the SmartOPD admin portal.',
-      style: TextStyle(color: _muted),
+      style: Theme.of(context).textTheme.bodyMedium,
     ),
     const SizedBox(height: 20),
     FilledButton.icon(
@@ -473,160 +578,180 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (_creating) ...[const SizedBox(height: 20), _createForm()],
     const SizedBox(height: 20),
     if (_loading)
-      const Center(child: CircularProgressIndicator())
+      const LoadingView(padding: 24)
     else if (_error != null)
-      _panel(
-        Column(
-          children: [
-            Text(_error!),
-            TextButton(onPressed: _load, child: const Text('Try again')),
-          ],
-        ),
-      )
+      ErrorView(message: _error!, onRetry: _load)
     else ...[
       Text(
         '${_admins.length} administrators',
-        style: const TextStyle(color: _muted),
+        style: const TextStyle(
+          color: AppTheme.textMuted,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       const SizedBox(height: 12),
       for (final admin in _admins)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _panel(
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(child: Icon(Icons.shield_outlined)),
-              title: Text(admin.name),
-              subtitle: Text(admin.email),
-              trailing: admin.id == widget.auth.user!.id
-                  ? const Text('You')
-                  : null,
+        GlassSurface(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: _iconChip(Icons.shield_outlined, AppTheme.teal, size: 42),
+            title: Text(
+              admin.name,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
+            subtitle: Text(
+              admin.email,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            trailing: admin.id == widget.auth.user!.id
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.teal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: AppTheme.teal.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: const Text(
+                      'You',
+                      style: TextStyle(
+                        color: AppTheme.teal,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  )
+                : null,
           ),
         ),
     ],
   ];
 
-  Widget _createForm() => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Form(
-        key: _form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'New administrator',
-              style: Theme.of(context).textTheme.titleLarge,
+  Widget _createForm() => GlassSurface(
+    padding: const EdgeInsets.all(20),
+    child: Form(
+      key: _form,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'New administrator',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create an account for an authorized team member. Share their password privately.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _name,
+            enabled: !_saving,
+            maxLength: 100,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Full name',
+              prefixIcon: Icon(Icons.person_outline),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Create an account for an authorized team member. Share their password privately.',
+            validator: (value) =>
+                value == null || value.trim().isEmpty ? 'Enter a name' : null,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _email,
+            enabled: !_saving,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Email address',
+              prefixIcon: Icon(Icons.mail_outline),
             ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _name,
-              enabled: !_saving,
-              maxLength: 100,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Full name',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'Enter a name' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _email,
-              enabled: !_saving,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Email address',
-                prefixIcon: Icon(Icons.mail_outline),
-              ),
-              validator: (value) =>
-                  value == null ||
-                      value.trim().length > 254 ||
-                      !RegExp(
-                        r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                      ).hasMatch(value.trim())
-                  ? 'Enter a valid email address'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _password,
-              enabled: !_saving,
-              obscureText: _obscure,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                helperText:
-                    '8–128 characters: uppercase, lowercase, number and symbol',
-                helperMaxLines: 3,
-                prefixIcon: const Icon(Icons.lock_outline),
-                suffixIcon: IconButton(
-                  tooltip: _obscure ? 'Show password' : 'Hide password',
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                  icon: Icon(
-                    _obscure
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
+            validator: (value) =>
+                value == null ||
+                    value.trim().length > 254 ||
+                    !RegExp(
+                      r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                    ).hasMatch(value.trim())
+                ? 'Enter a valid email address'
+                : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _password,
+            enabled: !_saving,
+            obscureText: _obscure,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: 'Password',
+              helperText:
+                  '8–128 characters: uppercase, lowercase, number and symbol',
+              helperMaxLines: 3,
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                tooltip: _obscure ? 'Show password' : 'Hide password',
+                onPressed: () => setState(() => _obscure = !_obscure),
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
               ),
-              validator: (value) =>
-                  value == null ||
-                      value.length < 8 ||
-                      value.length > 128 ||
-                      !RegExp(r'[A-Z]').hasMatch(value) ||
-                      !RegExp(r'[a-z]').hasMatch(value) ||
-                      !RegExp(r'\d').hasMatch(value) ||
-                      !RegExp(r'[^A-Za-z0-9]').hasMatch(value)
-                  ? 'Use the password requirements above'
-                  : null,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _confirm,
-              enabled: !_saving,
-              obscureText: _obscure,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: const InputDecoration(
-                labelText: 'Confirm password',
-                prefixIcon: Icon(Icons.lock_outline),
+            validator: (value) =>
+                value == null ||
+                    value.length < 8 ||
+                    value.length > 128 ||
+                    !RegExp(r'[A-Z]').hasMatch(value) ||
+                    !RegExp(r'[a-z]').hasMatch(value) ||
+                    !RegExp(r'\d').hasMatch(value) ||
+                    !RegExp(r'[^A-Za-z0-9]').hasMatch(value)
+                ? 'Use the password requirements above'
+                : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _confirm,
+            enabled: !_saving,
+            obscureText: _obscure,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'Confirm password',
+              prefixIcon: Icon(Icons.lock_outline),
+            ),
+            validator: (value) =>
+                value != _password.text ? 'Passwords do not match' : null,
+          ),
+          if (_formError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Text(
+                _formError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              validator: (value) =>
-                  value != _password.text ? 'Passwords do not match' : null,
             ),
-            if (_formError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text(
-                  _formError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _saving ? null : _create,
-              child: Text(_saving ? 'Creating admin…' : 'Create admin'),
-            ),
-            TextButton(
-              onPressed: _saving
-                  ? null
-                  : () {
-                      _clearForm();
-                      setState(() => _creating = false);
-                    },
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: _saving ? null : _create,
+            child: Text(_saving ? 'Creating admin…' : 'Create admin'),
+          ),
+          TextButton(
+            onPressed: _saving
+                ? null
+                : () {
+                    _clearForm();
+                    setState(() => _creating = false);
+                  },
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     ),
   );

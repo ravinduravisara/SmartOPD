@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../models/doctor.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/glass.dart';
 import '../appointments/book_appointment_screen.dart';
 
 class DoctorDetailsScreen extends StatefulWidget {
@@ -43,70 +44,79 @@ class _DoctorDetailsScreenState extends State<DoctorDetailsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Doctor')),
+  Widget build(BuildContext context) => GlassScaffold(
+    title: 'Doctor',
     body: AsyncView<Doctor>(
       future: doctor,
       onRetry: _load,
       builder: (context, data) => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        // Extra top padding so the list clears the translucent app bar.
+        padding: EdgeInsets.fromLTRB(20, glassTopInset(context) + 4, 20, 28),
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 34,
-                backgroundColor: AppTheme.mint,
-                child: Text(
-                  data.name.replaceFirst('Dr. ', '').characters.first
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: AppTheme.navy,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
+          // The focal card on this screen: dark glass, light type.
+          GlassHeroSurface(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: AppTheme.mint.withValues(alpha: 0.9),
+                  child: Text(
+                    data.name.replaceFirst('Dr. ', '').characters.first
+                        .toUpperCase(),
+                    style: const TextStyle(
+                      color: AppTheme.navy,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      data.specialization,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                    if (data.qualifications != null) ...[
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
-                        data.qualifications!,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        data.specialization,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.mint,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      if (data.qualifications != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          data.qualifications!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: const Color(0xFFBBD2D6)),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  _Stat(
-                    label: 'Experience',
-                    value: '${data.experienceYears} yrs',
-                  ),
-                  _Stat(label: 'Fee', value: 'Rs. ${data.consultationFee}'),
-                  _Stat(label: 'Slot', value: '${data.slotMinutes} min'),
-                ],
-              ),
+          GlassSurface(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _Stat(
+                  label: 'Experience',
+                  value: '${data.experienceYears} yrs',
+                ),
+                _Stat(label: 'Fee', value: 'Rs. ${data.consultationFee}'),
+                _Stat(label: 'Slot', value: '${data.slotMinutes} min'),
+              ],
             ),
           ),
           if (data.hospitalName != null) ...[
@@ -140,40 +150,45 @@ class _DoctorDetailsScreenState extends State<DoctorDetailsScreen> {
               style: Theme.of(context).textTheme.bodyLarge,
             )
           else
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                child: Column(
-                  children: [
-                    for (final block in data.schedule)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Row(
-                          children: [
-                            const Icon(
+            GlassSurface(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              child: Column(
+                children: [
+                  for (final block in data.schedule)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: AppTheme.mint.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
                               Icons.schedule_rounded,
                               size: 18,
                               color: AppTheme.teal,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                block.day,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              block.day,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            Text(
-                              block.label,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
+                          ),
+                          Text(
+                            block.label,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           const SizedBox(height: 26),

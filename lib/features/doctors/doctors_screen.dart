@@ -5,6 +5,7 @@ import '../../models/doctor.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 import 'doctor_details_screen.dart';
 
 /// Doctor list. Shows every doctor by default, or only those in one hospital
@@ -63,54 +64,58 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-          child: TextField(
-            controller: search,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _load(),
-            decoration: InputDecoration(
-              hintText: 'Search name or specialization',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward_rounded),
-                onPressed: _load,
+  Widget build(BuildContext context) => GlassScaffold(
+    title: widget.title,
+    body: Padding(
+      // Clears the translucent app bar the content sits under.
+      padding: EdgeInsets.only(top: glassTopInset(context)),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: TextField(
+              controller: search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _load(),
+              decoration: InputDecoration(
+                hintText: 'Search name or specialization',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  onPressed: _load,
+                ),
               ),
             ),
           ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => _load(),
-            child: AsyncView<List<Doctor>>(
-              future: doctors,
-              onRetry: _load,
-              builder: (context, list) => ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                children: [
-                  if (list.isEmpty)
-                    const EmptyView(
-                      icon: Icons.person_search_outlined,
-                      message: 'No doctors matched your search.',
-                    ),
-                  for (final doctor in list) ...[
-                    DoctorCard(
-                      doctor: doctor,
-                      onTap: () => _openDoctor(doctor.id),
-                    ),
-                    const SizedBox(height: 12),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => _load(),
+              color: AppTheme.teal,
+              backgroundColor: Colors.white.withValues(alpha: 0.9),
+              child: AsyncView<List<Doctor>>(
+                future: doctors,
+                onRetry: _load,
+                builder: (context, list) => ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                  children: [
+                    if (list.isEmpty)
+                      const EmptyView(
+                        icon: Icons.person_search_outlined,
+                        message: 'No doctors matched your search.',
+                      ),
+                    for (final doctor in list)
+                      DoctorCard(
+                        doctor: doctor,
+                        onTap: () => _openDoctor(doctor.id),
+                      ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -121,81 +126,78 @@ class DoctorCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: AppTheme.mint,
-              child: Text(
-                doctor.name.replaceFirst('Dr. ', '').characters.first
-                    .toUpperCase(),
-                style: const TextStyle(
-                  color: AppTheme.navy,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+  Widget build(BuildContext context) => GlassSurface(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    onTap: onTap,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 26,
+          backgroundColor: AppTheme.mint.withValues(alpha: 0.45),
+          child: Text(
+            doctor.name.replaceFirst('Dr. ', '').characters.first
+                .toUpperCase(),
+            style: const TextStyle(
+              color: AppTheme.navy,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                doctor.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                doctor.specialization,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              if (doctor.hospitalName != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  doctor.hospitalName!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  Text(
-                    doctor.name,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  _Pill(
+                    icon: Icons.workspace_premium_outlined,
+                    label: '${doctor.experienceYears} yrs',
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    doctor.specialization,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  _Pill(
+                    icon: Icons.payments_outlined,
+                    label: 'Rs. ${doctor.consultationFee}',
                   ),
-                  if (doctor.hospitalName != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      doctor.hospitalName!,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  if (doctor.schedule.isNotEmpty)
+                    _Pill(
+                      icon: Icons.event_available_outlined,
+                      label:
+                          '${doctor.schedule.length} '
+                          '${doctor.schedule.length == 1 ? 'session' : 'sessions'}/week',
                     ),
-                  ],
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      _Pill(
-                        icon: Icons.workspace_premium_outlined,
-                        label: '${doctor.experienceYears} yrs',
-                      ),
-                      _Pill(
-                        icon: Icons.payments_outlined,
-                        label: 'Rs. ${doctor.consultationFee}',
-                      ),
-                      if (doctor.schedule.isNotEmpty)
-                        _Pill(
-                          icon: Icons.event_available_outlined,
-                          label:
-                              '${doctor.schedule.length} '
-                              '${doctor.schedule.length == 1 ? 'session' : 'sessions'}/week',
-                        ),
-                    ],
-                  ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     ),
   );
 }
 
+/// Small translucent tag used inside a glass card.
 class _Pill extends StatelessWidget {
   const _Pill({required this.icon, required this.label});
   final IconData icon;
@@ -205,8 +207,9 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
-      color: const Color(0xFFEEF6F4),
+      color: Colors.white.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: AppTheme.glassBorder),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
+import '../../../widgets/glass.dart';
 import '../queue_provider.dart';
 import '../queue_screen.dart';
 
@@ -23,24 +25,10 @@ class LiveQueueHomeCard extends StatelessWidget {
         final ahead = metrics?['patientsAhead'] as int? ?? 0;
         final eta = metrics?['estimatedWaitMinutes'] as int? ?? 0;
 
-        return Container(
+        return GlassHeroSurface(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          radius: 24,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -50,18 +38,24 @@ class LiveQueueHomeCard extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(10),
+                          color: AppTheme.mint.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.mint.withValues(alpha: 0.45)),
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.circle, color: Color(0xFF10B981), size: 8),
-                            SizedBox(width: 4),
+                            Icon(Icons.circle, color: AppTheme.mint, size: 8),
+                            SizedBox(width: 5),
                             Text(
                               'LIVE QUEUE',
-                              style: TextStyle(color: Color(0xFF34D399), fontSize: 10, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: AppTheme.mint,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
                             ),
                           ],
                         ),
@@ -83,15 +77,20 @@ class LiveQueueHomeCard extends StatelessWidget {
                   _statItem('ETA', '~${eta}m'),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0284C7),
+                    backgroundColor: Colors.white.withValues(alpha: 0.18),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: () {
                     Navigator.of(context).push(
@@ -112,8 +111,11 @@ class LiveQueueHomeCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
-        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.66), fontSize: 11),
+        ),
+        const SizedBox(height: 3),
         Text(val, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
       ],
     );
