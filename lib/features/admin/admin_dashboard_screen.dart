@@ -8,6 +8,10 @@ import '../../widgets/error_widget.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/loading.dart';
 import '../auth/providers/auth_provider.dart';
+import 'catalog/departments_tab.dart';
+import 'catalog/doctors_tab.dart';
+import 'catalog/hospitals_tab.dart';
+import 'data/catalog_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({required this.auth, super.key});
@@ -19,6 +23,12 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _tab = 0;
+
+  /// The catalog the booking flow reads: cities, hospitals, departments and
+  /// doctors. It shares the signed-in admin's client, so it carries the token.
+  late final AdminCatalogService _catalog = AdminCatalogService(
+    widget.auth.service.api,
+  );
 
   /// Status hues that have to stay apart from each other and from the teal.
   static const _flow = Color(0xFF438AF0);
@@ -216,44 +226,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _tab == 0
-                      ? _overview()
-                      : _tab == 4
-                      ? _administrators()
-                      : [
-                          GlassSurface(
-                            padding: const EdgeInsets.all(28),
-                            child: Column(
-                              children: [
-                                _iconChip(
-                                  Icons.construction_outlined,
-                                  AppTheme.teal,
-                                  size: 52,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  [
-                                    '',
-                                    'Appointments',
-                                    'Queue management',
-                                    'Doctors',
-                                  ][_tab],
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.navy,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'This admin section will be added in the next stage.',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  children: _tabBody(),
                 ),
               ),
             ),
@@ -262,6 +235,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     );
   }
+
+  List<Widget> _tabBody() => switch (_tab) {
+    0 => _overview(),
+    1 => [HospitalsAdminTab(service: _catalog)],
+    2 => [DepartmentsAdminTab(service: _catalog)],
+    3 => [DoctorsAdminTab(service: _catalog)],
+    _ => _administrators(),
+  };
 
   /// Frosted bottom bar: content scrolls behind it, so it gets its own blur.
   Widget _navigation() => ClipRect(
@@ -313,12 +294,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 label: 'Home',
               ),
               NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined),
-                label: 'Appts',
+                icon: Icon(Icons.local_hospital_outlined),
+                label: 'Hospitals',
               ),
               NavigationDestination(
-                icon: Icon(Icons.format_list_bulleted),
-                label: 'Queue',
+                icon: Icon(Icons.account_tree_outlined),
+                label: 'Depts',
               ),
               NavigationDestination(
                 icon: Icon(Icons.people_outline),
