@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
@@ -8,6 +6,10 @@ import '../../widgets/error_widget.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/loading.dart';
 import '../auth/providers/auth_provider.dart';
+import 'catalog/departments_tab.dart';
+import 'catalog/doctors_tab.dart';
+import 'catalog/hospitals_tab.dart';
+import 'data/catalog_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({required this.auth, super.key});
@@ -19,6 +21,12 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _tab = 0;
+
+  /// The catalog the booking flow reads: cities, hospitals, departments and
+  /// doctors. It shares the signed-in admin's client, so it carries the token.
+  late final AdminCatalogService _catalog = AdminCatalogService(
+    widget.auth.service.api,
+  );
 
   /// Status hues that have to stay apart from each other and from the teal.
   static const _flow = Color(0xFF438AF0);
@@ -216,44 +224,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _tab == 0
-                      ? _overview()
-                      : _tab == 4
-                      ? _administrators()
-                      : [
-                          GlassSurface(
-                            padding: const EdgeInsets.all(28),
-                            child: Column(
-                              children: [
-                                _iconChip(
-                                  Icons.construction_outlined,
-                                  AppTheme.teal,
-                                  size: 52,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  [
-                                    '',
-                                    'Appointments',
-                                    'Queue management',
-                                    'Doctors',
-                                  ][_tab],
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.navy,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'This admin section will be added in the next stage.',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  children: _tabBody(),
                 ),
               ),
             ),
@@ -263,73 +234,103 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  /// Frosted bottom bar: content scrolls behind it, so it gets its own blur.
+  /// Catalog tabs opened at least once. They stay in the tree behind an
+  /// [Offstage] so returning to one shows the rows it already loaded, instead
+  /// of tearing the state down and refetching behind a spinner every time.
+  final _opened = <int>{};
+
+  List<Widget> _tabBody() => [
+    if (_tab == 0) ..._overview(),
+    if (_tab == 4) ..._administrators(),
+    if (_opened.contains(1))
+      Offstage(
+        offstage: _tab != 1,
+        child: HospitalsAdminTab(service: _catalog),
+      ),
+    if (_opened.contains(2))
+      Offstage(
+        offstage: _tab != 2,
+        child: DepartmentsAdminTab(service: _catalog),
+      ),
+    if (_opened.contains(3))
+      Offstage(
+        offstage: _tab != 3,
+        child: DoctorsAdminTab(service: _catalog),
+      ),
+  ];
+
+  /// Translucent bottom bar. It deliberately does NOT blur: this screen
+  /// already blurs its app bar, and content scrolling under two blurred bars
+  /// re-ran both full-width blurs every frame, which is what made the admin
+  /// screens heavier than the rest of the app.
   Widget _navigation() => ClipRect(
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+    child: DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+      ),
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          // Opaque enough to read against scrolling content now that the
+          // bar no longer frosts what passes behind it.
+          backgroundColor: const Color(0xF0FFFFFF),
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          indicatorColor: AppTheme.teal.withValues(alpha: 0.16),
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          iconTheme: WidgetStateProperty.resolveWith(
+            (states) => IconThemeData(
+              size: 22,
+              color: states.contains(WidgetState.selected)
+                  ? AppTheme.teal
+                  : AppTheme.textMuted,
+            ),
+          ),
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: 11,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              color: states.contains(WidgetState.selected)
+                  ? AppTheme.teal
+                  : AppTheme.textMuted,
+            ),
+          ),
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: const Color(0x73FFFFFF),
-            surfaceTintColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            elevation: 0,
-            indicatorColor: AppTheme.teal.withValues(alpha: 0.16),
-            indicatorShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+        child: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: _saving
+              ? null
+              : (index) => setState(() {
+                  _tab = index;
+                  if (index > 0 && index < 4) _opened.add(index);
+                }),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              label: 'Home',
             ),
-            iconTheme: WidgetStateProperty.resolveWith(
-              (states) => IconThemeData(
-                size: 22,
-                color: states.contains(WidgetState.selected)
-                    ? AppTheme.teal
-                    : AppTheme.textMuted,
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.local_hospital_outlined),
+              label: 'Hospitals',
             ),
-            labelTextStyle: WidgetStateProperty.resolveWith(
-              (states) => TextStyle(
-                fontSize: 11,
-                fontWeight: states.contains(WidgetState.selected)
-                    ? FontWeight.w700
-                    : FontWeight.w500,
-                color: states.contains(WidgetState.selected)
-                    ? AppTheme.teal
-                    : AppTheme.textMuted,
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.account_tree_outlined),
+              label: 'Depts',
             ),
-          ),
-          child: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: _saving
-                ? null
-                : (index) => setState(() => _tab = index),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.grid_view_outlined),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined),
-                label: 'Appts',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.format_list_bulleted),
-                label: 'Queue',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                label: 'Doctors',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                label: 'More',
-              ),
-            ],
-          ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              label: 'Doctors',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              label: 'More',
+            ),
+          ],
         ),
       ),
     ),

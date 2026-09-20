@@ -21,6 +21,7 @@ import 'features/queue/queue_history_screen.dart';
 import 'features/queue/widgets/live_queue_home_card.dart';
 import 'features/queue_assistant/smart_queue_assistant_screen.dart';
 import 'features/notifications/notifications_screen.dart';
+import 'features/splash/splash_screen.dart';
 
 void main() => runApp(const SmartOpdApp());
 
@@ -51,12 +52,24 @@ class SmartOpdApp extends StatefulWidget {
 class _SmartOpdAppState extends State<SmartOpdApp> {
   final auth = AuthProvider();
 
+  /// False until the saved session has been restored and the splash has had
+  /// its moment on screen.
+  bool _started = false;
+
   @override
   void initState() {
     super.initState();
-    auth.restoreSession().then((_) {
-      if (mounted) setState(() {});
-    });
+    _start();
+  }
+
+  Future<void> _start() async {
+    // The splash is held for a beat even when the restore returns straight
+    // away, so it reads as a start-up rather than a flicker.
+    await Future.wait([
+      auth.restoreSession(),
+      Future<void>.delayed(const Duration(milliseconds: 1400)),
+    ]);
+    if (mounted) setState(() => _started = true);
   }
 
   @override
@@ -69,7 +82,9 @@ class _SmartOpdAppState extends State<SmartOpdApp> {
     // a failed sign-in looks like the button simply did nothing.
     home: ListenableBuilder(
       listenable: auth,
-      builder: (context, _) => auth.user == null
+      builder: (context, _) => !_started
+          ? const SplashScreen()
+          : auth.user == null
           ? AuthScreen(auth: auth, onChanged: () => setState(() {}))
           : auth.user!.role == 'admin'
           ? AdminDashboardScreen(auth: auth)
