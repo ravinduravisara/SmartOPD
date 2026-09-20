@@ -91,15 +91,21 @@ class _HospitalsAdminTabState extends State<HospitalsAdminTab> {
       _error = null;
     });
     try {
-      final cities = await widget.service.cities();
+      // Both start together: one after the other showed a spinner for the sum
+      // of the two round trips every time the tab opened.
+      final citiesRequest = widget.service.cities();
+      final hospitalsRequest = widget.service.hospitals(
+        query: _query,
+        city: _cityFilter,
+      );
+      final cities = await citiesRequest;
       if (!mounted || token != _request) return;
       // A city that was renamed or deleted must not keep filtering the list.
       final names = cities.map((city) => city.name).toSet();
       final filter = names.contains(_cityFilter) ? _cityFilter : null;
-      final hospitals = await widget.service.hospitals(
-        query: _query,
-        city: filter,
-      );
+      final hospitals = filter == _cityFilter
+          ? await hospitalsRequest
+          : await widget.service.hospitals(query: _query, city: filter);
       if (!mounted || token != _request) return;
       setState(() {
         _cities = cities;

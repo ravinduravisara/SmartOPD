@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
@@ -236,81 +234,103 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  List<Widget> _tabBody() => switch (_tab) {
-    0 => _overview(),
-    1 => [HospitalsAdminTab(service: _catalog)],
-    2 => [DepartmentsAdminTab(service: _catalog)],
-    3 => [DoctorsAdminTab(service: _catalog)],
-    _ => _administrators(),
-  };
+  /// Catalog tabs opened at least once. They stay in the tree behind an
+  /// [Offstage] so returning to one shows the rows it already loaded, instead
+  /// of tearing the state down and refetching behind a spinner every time.
+  final _opened = <int>{};
 
-  /// Frosted bottom bar: content scrolls behind it, so it gets its own blur.
+  List<Widget> _tabBody() => [
+    if (_tab == 0) ..._overview(),
+    if (_tab == 4) ..._administrators(),
+    if (_opened.contains(1))
+      Offstage(
+        offstage: _tab != 1,
+        child: HospitalsAdminTab(service: _catalog),
+      ),
+    if (_opened.contains(2))
+      Offstage(
+        offstage: _tab != 2,
+        child: DepartmentsAdminTab(service: _catalog),
+      ),
+    if (_opened.contains(3))
+      Offstage(
+        offstage: _tab != 3,
+        child: DoctorsAdminTab(service: _catalog),
+      ),
+  ];
+
+  /// Translucent bottom bar. It deliberately does NOT blur: this screen
+  /// already blurs its app bar, and content scrolling under two blurred bars
+  /// re-ran both full-width blurs every frame, which is what made the admin
+  /// screens heavier than the rest of the app.
   Widget _navigation() => ClipRect(
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+    child: DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+      ),
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          // Opaque enough to read against scrolling content now that the
+          // bar no longer frosts what passes behind it.
+          backgroundColor: const Color(0xF0FFFFFF),
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          indicatorColor: AppTheme.teal.withValues(alpha: 0.16),
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          iconTheme: WidgetStateProperty.resolveWith(
+            (states) => IconThemeData(
+              size: 22,
+              color: states.contains(WidgetState.selected)
+                  ? AppTheme.teal
+                  : AppTheme.textMuted,
+            ),
+          ),
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: 11,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              color: states.contains(WidgetState.selected)
+                  ? AppTheme.teal
+                  : AppTheme.textMuted,
+            ),
+          ),
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: const Color(0x73FFFFFF),
-            surfaceTintColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            elevation: 0,
-            indicatorColor: AppTheme.teal.withValues(alpha: 0.16),
-            indicatorShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+        child: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: _saving
+              ? null
+              : (index) => setState(() {
+                  _tab = index;
+                  if (index > 0 && index < 4) _opened.add(index);
+                }),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              label: 'Home',
             ),
-            iconTheme: WidgetStateProperty.resolveWith(
-              (states) => IconThemeData(
-                size: 22,
-                color: states.contains(WidgetState.selected)
-                    ? AppTheme.teal
-                    : AppTheme.textMuted,
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.local_hospital_outlined),
+              label: 'Hospitals',
             ),
-            labelTextStyle: WidgetStateProperty.resolveWith(
-              (states) => TextStyle(
-                fontSize: 11,
-                fontWeight: states.contains(WidgetState.selected)
-                    ? FontWeight.w700
-                    : FontWeight.w500,
-                color: states.contains(WidgetState.selected)
-                    ? AppTheme.teal
-                    : AppTheme.textMuted,
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.account_tree_outlined),
+              label: 'Depts',
             ),
-          ),
-          child: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: _saving
-                ? null
-                : (index) => setState(() => _tab = index),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.grid_view_outlined),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.local_hospital_outlined),
-                label: 'Hospitals',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.account_tree_outlined),
-                label: 'Depts',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                label: 'Doctors',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                label: 'More',
-              ),
-            ],
-          ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              label: 'Doctors',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              label: 'More',
+            ),
+          ],
         ),
       ),
     ),

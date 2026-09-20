@@ -77,8 +77,17 @@ class _DoctorsAdminTabState extends State<DoctorsAdminTab> {
       _error = null;
     });
     try {
-      final hospitals = await widget.service.hospitals();
-      final departments = await widget.service.departments();
+      // Started together rather than awaited one by one: run in sequence these
+      // three round trips stacked up into a visible wait on every open.
+      final hospitalsRequest = widget.service.hospitals();
+      final departmentsRequest = widget.service.departments();
+      final doctorsRequest = widget.service.doctors(
+        hospitalId: _hospitalFilter,
+        departmentId: _departmentFilter,
+        query: _search.text.trim(),
+      );
+      final hospitals = await hospitalsRequest;
+      final departments = await departmentsRequest;
       // Filters pointing at rows that are gone — or at a department that no
       // longer matches the chosen hospital — would leave a dropdown holding a
       // value none of its items carry, which throws. Drop them instead.
@@ -93,11 +102,16 @@ class _DoctorsAdminTabState extends State<DoctorsAdminTab> {
           )
           ? _departmentFilter
           : null;
-      final doctors = await widget.service.doctors(
-        hospitalId: hospitalId,
-        departmentId: departmentId,
-        query: _search.text.trim(),
-      );
+      // The doctors already in flight were asked for with the old filters. They
+      // only need asking again if validation actually changed one.
+      final doctors =
+          (hospitalId == _hospitalFilter && departmentId == _departmentFilter)
+          ? await doctorsRequest
+          : await widget.service.doctors(
+              hospitalId: hospitalId,
+              departmentId: departmentId,
+              query: _search.text.trim(),
+            );
       if (!mounted) return;
       setState(() {
         _hospitals = hospitals;

@@ -48,6 +48,11 @@ void showCatalogMessage(BuildContext context, Object message) {
 }
 
 /// Opens a form as a glass sheet. Returns true when the form saved.
+///
+/// `useSafeArea` keeps a tall form (the doctor one runs well past a phone
+/// screen) out from under the status bar, and the height cap leaves the page
+/// visible behind it so it still reads as a sheet. The title row stays put
+/// while the fields scroll under it.
 Future<bool> showCatalogForm(
   BuildContext context, {
   required String title,
@@ -56,45 +61,52 @@ Future<bool> showCatalogForm(
     await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          top: 12,
-        ),
-        child: GlassSurface(
-          blur: 24,
-          radius: 28,
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleLarge,
+      builder: (context) {
+        final media = MediaQuery.of(context);
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            top: 12,
+            bottom: media.viewInsets.bottom + 12,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: media.size.height * 0.86),
+            child: GlassSurface(
+              blur: 14,
+              radius: 28,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                builder(context),
-              ],
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: SingleChildScrollView(child: builder(context)),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     ) ??
     false;
 

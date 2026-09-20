@@ -51,14 +51,22 @@ class _DepartmentsAdminTabState extends State<DepartmentsAdminTab> {
       _error = null;
     });
     try {
-      final hospitals = await widget.service.hospitals();
+      // Both requests start together; awaiting the first before sending the
+      // second doubled the wait before anything appeared.
+      final hospitalsRequest = widget.service.hospitals();
+      final departmentsRequest = widget.service.departments(
+        hospitalId: _hospitalFilter,
+      );
+      final hospitals = await hospitalsRequest;
       // A filter pointing at a hospital that has since been deleted would
       // leave the dropdown holding a value none of its items carry, which
       // throws. Fall back to "All hospitals" instead.
       final filter = hospitals.any((hospital) => hospital.id == _hospitalFilter)
           ? _hospitalFilter
           : null;
-      final departments = await widget.service.departments(hospitalId: filter);
+      final departments = filter == _hospitalFilter
+          ? await departmentsRequest
+          : await widget.service.departments(hospitalId: filter);
       if (!mounted) return;
       setState(() {
         _hospitals = hospitals;
