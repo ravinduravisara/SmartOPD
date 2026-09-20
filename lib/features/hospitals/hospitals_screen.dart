@@ -5,6 +5,7 @@ import '../../models/hospital.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 import 'hospital_details_screen.dart';
 
 class HospitalsScreen extends StatefulWidget {
@@ -50,62 +51,66 @@ class _HospitalsScreenState extends State<HospitalsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Hospitals')),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-          child: TextField(
-            controller: search,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _load(),
-            decoration: InputDecoration(
-              hintText: 'Search hospital or city',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_forward_rounded),
-                onPressed: _load,
+  Widget build(BuildContext context) => GlassScaffold(
+    title: 'Hospitals',
+    body: Padding(
+      // Clears the translucent app bar the content sits under.
+      padding: EdgeInsets.only(top: glassTopInset(context)),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: TextField(
+              controller: search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _load(),
+              decoration: InputDecoration(
+                hintText: 'Search hospital or city',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  onPressed: _load,
+                ),
               ),
             ),
           ),
-        ),
-        _CityFilter(
-          service: widget.service,
-          selected: city,
-          onChanged: (value) {
-            city = value;
-            _load();
-          },
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => _load(),
-            child: AsyncView<List<Hospital>>(
-              future: hospitals,
-              onRetry: _load,
-              builder: (context, list) => ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-                children: [
-                  if (list.isEmpty)
-                    const EmptyView(
-                      icon: Icons.local_hospital_outlined,
-                      message: 'No hospitals matched your search.',
-                    ),
-                  for (final hospital in list) ...[
-                    _HospitalCard(
-                      hospital: hospital,
-                      onTap: () => _openHospital(hospital.id),
-                    ),
-                    const SizedBox(height: 12),
+          _CityFilter(
+            service: widget.service,
+            selected: city,
+            onChanged: (value) {
+              city = value;
+              _load();
+            },
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => _load(),
+              color: AppTheme.teal,
+              backgroundColor: Colors.white.withValues(alpha: 0.9),
+              child: AsyncView<List<Hospital>>(
+                future: hospitals,
+                onRetry: _load,
+                builder: (context, list) => ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                  children: [
+                    if (list.isEmpty)
+                      const EmptyView(
+                        icon: Icons.local_hospital_outlined,
+                        message: 'No hospitals matched your search.',
+                      ),
+                    for (final hospital in list)
+                      _HospitalCard(
+                        hospital: hospital,
+                        onTap: () => _openHospital(hospital.id),
+                      ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -140,17 +145,21 @@ class _CityFilterState extends State<_CityFilter> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           children: [
-            ChoiceChip(
-              label: const Text('All cities'),
-              selected: widget.selected == null,
-              onSelected: (_) => widget.onChanged(null),
+            Center(
+              child: _CityPill(
+                label: 'All cities',
+                selected: widget.selected == null,
+                onTap: () => widget.onChanged(null),
+              ),
             ),
             for (final city in list) ...[
               const SizedBox(width: 8),
-              ChoiceChip(
-                label: Text(city),
-                selected: widget.selected == city,
-                onSelected: (_) => widget.onChanged(city),
+              Center(
+                child: _CityPill(
+                  label: city,
+                  selected: widget.selected == city,
+                  onTap: () => widget.onChanged(city),
+                ),
               ),
             ],
           ],
@@ -160,53 +169,93 @@ class _CityFilterState extends State<_CityFilter> {
   );
 }
 
+/// Translucent filter pill: teal glass when picked, clear glass when not.
+class _CityPill extends StatelessWidget {
+  const _CityPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final corners = BorderRadius.circular(16);
+    return Material(
+      color: selected ? AppTheme.teal : Colors.white.withValues(alpha: 0.45),
+      borderRadius: corners,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: corners,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: corners,
+            border: Border.all(
+              color: selected ? Colors.transparent : AppTheme.glassBorder,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : AppTheme.navy,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HospitalCard extends StatelessWidget {
   const _HospitalCard({required this.hospital, required this.onTap});
   final Hospital hospital;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.mint.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.local_hospital_rounded,
-                color: AppTheme.navy,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hospital.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${hospital.city} · ${hospital.doctorCount} '
-                    '${hospital.doctorCount == 1 ? 'doctor' : 'doctors'}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppTheme.teal),
-          ],
+  Widget build(BuildContext context) => GlassSurface(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    onTap: onTap,
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.mint.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(
+            Icons.local_hospital_rounded,
+            color: AppTheme.navy,
+          ),
         ),
-      ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hospital.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${hospital.city} · ${hospital.doctorCount} '
+                '${hospital.doctorCount == 1 ? 'doctor' : 'doctors'}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: AppTheme.teal),
+      ],
     ),
   );
 }

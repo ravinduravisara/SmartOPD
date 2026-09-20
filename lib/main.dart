@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'config/theme.dart';
+import 'features/admin/admin_dashboard_screen.dart';
 import 'features/appointments/appointments_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/hospitals/hospitals_screen.dart';
@@ -12,6 +13,7 @@ import 'models/dependent.dart';
 import 'models/user.dart';
 import 'utils/date_utils.dart';
 import 'widgets/error_widget.dart';
+import 'widgets/glass.dart';
 import 'services/queue_service.dart';
 import 'features/queue/queue_provider.dart';
 import 'features/queue/queue_screen.dart';
@@ -21,6 +23,23 @@ import 'features/queue_assistant/smart_queue_assistant_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 
 void main() => runApp(const SmartOpdApp());
+
+/// Android's default overscroll stretches the whole viewport through an image
+/// filter on every frame, and the translucent app bar then has to blur that
+/// filtered layer again - two full-screen passes per frame while pulling.
+/// Dropping the indicator removes one of them; the refresh spinner is still
+/// the feedback for a pull. (A glow indicator is not cheaper: it repaints the
+/// viewport too.)
+class _GlassScrollBehavior extends MaterialScrollBehavior {
+  const _GlassScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
+}
 
 class SmartOpdApp extends StatefulWidget {
   const SmartOpdApp({super.key});
@@ -45,12 +64,15 @@ class _SmartOpdAppState extends State<SmartOpdApp> {
     debugShowCheckedModeBanner: false,
     title: 'SmartOPD',
     theme: AppTheme.light,
+    scrollBehavior: const _GlassScrollBehavior(),
     // Without this the provider's `loading` and `error` never reach the UI, so
     // a failed sign-in looks like the button simply did nothing.
     home: ListenableBuilder(
       listenable: auth,
       builder: (context, _) => auth.user == null
           ? AuthScreen(auth: auth, onChanged: () => setState(() {}))
+          : auth.user!.role == 'admin'
+          ? AdminDashboardScreen(auth: auth)
           : HomeScreen(auth: auth, onChanged: () => setState(() {})),
     ),
   );
@@ -87,15 +109,18 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: verificationStep
-          ? _verificationView(context)
-          : Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+  Widget build(BuildContext context) => GlassScaffold(
+    appBar: false,
+    body: verificationStep
+        ? _verificationView(context)
+        : Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: GlassSurface(
+                  radius: 28,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -201,7 +226,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
             ),
-    ),
+          ),
   );
 
   Widget _field(
@@ -280,70 +305,74 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _verificationView(BuildContext context) => Center(
     child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _BrandLockup(),
-            const SizedBox(height: 40),
-            Text(
-              resetStep ? 'Reset your password' : 'Verify your email',
-              style: Theme.of(context).textTheme.headlineLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              resetStep
-                  ? 'Enter the code sent to ${email.text} and choose a new password.'
-                  : 'Enter the 6-digit code sent to ${email.text}.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: otp,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              decoration: const InputDecoration(
-                labelText: 'Verification code',
-                prefixIcon: Icon(Icons.verified_user_outlined),
+        child: GlassSurface(
+          radius: 28,
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _BrandLockup(),
+              const SizedBox(height: 40),
+              Text(
+                resetStep ? 'Reset your password' : 'Verify your email',
+                style: Theme.of(context).textTheme.headlineLarge,
               ),
-            ),
-            if (resetStep) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              Text(
+                resetStep
+                    ? 'Enter the code sent to ${email.text} and choose a new password.'
+                    : 'Enter the 6-digit code sent to ${email.text}.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 24),
               TextField(
-                controller: resetPassword,
-                obscureText: true,
+                controller: otp,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
                 decoration: const InputDecoration(
-                  labelText: 'New password',
-                  prefixIcon: Icon(Icons.lock_reset_outlined),
-                  helperText:
-                      '8+ chars with uppercase, lowercase, number and symbol',
+                  labelText: 'Verification code',
+                  prefixIcon: Icon(Icons.verified_user_outlined),
                 ),
               ),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton(
-                onPressed: widget.auth.loading ? null : _submitCode,
-                child: Text(resetStep ? 'Reset password' : 'Verify email'),
+              if (resetStep) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: resetPassword,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New password',
+                    prefixIcon: Icon(Icons.lock_reset_outlined),
+                    helperText:
+                        '8+ chars with uppercase, lowercase, number and symbol',
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: widget.auth.loading ? null : _submitCode,
+                  child: Text(resetStep ? 'Reset password' : 'Verify email'),
+                ),
               ),
-            ),
-            TextButton(
-              onPressed: widget.auth.loading ? null : _resendOrSendReset,
-              child: Text(
-                resetStep
-                    ? 'Send a new reset code'
-                    : 'Resend verification code',
+              TextButton(
+                onPressed: widget.auth.loading ? null : _resendOrSendReset,
+                child: Text(
+                  resetStep
+                      ? 'Send a new reset code'
+                      : 'Resend verification code',
+                ),
               ),
-            ),
-            if (widget.auth.error != null) ...[
-              const SizedBox(height: 12),
-              _ErrorMessage(message: widget.auth.error!),
+              if (widget.auth.error != null) ...[
+                const SizedBox(height: 12),
+                _ErrorMessage(message: widget.auth.error!),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     ),
@@ -477,58 +506,66 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const _BrandLockup(compact: true),
-      actions: [
-        ListenableBuilder(
-          listenable: queueProvider,
-          builder: (context, _) => Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Notifications',
-                icon: const Icon(Icons.notifications_none_rounded),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => NotificationsScreen(provider: queueProvider),
-                    ),
-                  );
-                },
-              ),
-              if (queueProvider.unreadNotificationsCount > 0)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '${queueProvider.unreadNotificationsCount}',
-                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+  Widget build(BuildContext context) => GlassScaffold(
+    titleWidget: const _BrandLockup(compact: true),
+    actions: [
+      ListenableBuilder(
+        listenable: queueProvider,
+        builder: (context, _) => Stack(
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              tooltip: 'Notifications',
+              icon: const Icon(Icons.notifications_none_rounded),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        NotificationsScreen(provider: queueProvider),
+                  ),
+                );
+              },
+            ),
+            if (queueProvider.unreadNotificationsCount > 0)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEF4444),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${queueProvider.unreadNotificationsCount}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
-        IconButton(
-          tooltip: 'Log out',
-          onPressed: _logout,
-          icon: const Icon(Icons.logout_rounded),
-        ),
-        const SizedBox(width: 8),
-      ],
-    ),
+      ),
+      IconButton(
+        tooltip: 'Log out',
+        onPressed: _logout,
+        icon: const Icon(Icons.logout_rounded),
+      ),
+      const SizedBox(width: 8),
+    ],
     body: RefreshIndicator(
       onRefresh: () async => _reloadHome(),
+      // Without this the spinner is drawn at the very top of the list, which
+      // is behind the translucent app bar.
+      edgeOffset: glassTopInset(context),
+      color: AppTheme.teal,
+      backgroundColor: Colors.white.withValues(alpha: 0.9),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: EdgeInsets.fromLTRB(20, glassTopInset(context), 20, 32),
         children: [
           Text('Good morning,', style: Theme.of(context).textTheme.bodyLarge),
           Row(
@@ -550,72 +587,84 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 28),
           Text('Quick actions', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.confirmation_number_outlined,
-                  label: 'Live Queue',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => QueueScreen(provider: queueProvider),
-                      ),
-                    );
-                  },
+          // IntrinsicHeight gives the row a height to stretch into, so every
+          // tile matches the tallest even when a slab label wraps.
+          IntrinsicHeight(
+            child: Row(
+              // Slab labels can wrap, so let every tile match the tallest.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.confirmation_number_outlined,
+                    label: 'Live Queue',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => QueueScreen(provider: queueProvider),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.calendar_month_outlined,
-                  label: 'Book visit',
-                  onTap: _openHospitals,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Book visit',
+                    onTap: _openHospitals,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.event_note_outlined,
-                  label: 'My visits',
-                  onTap: _openAppointments,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.event_note_outlined,
+                    label: 'My visits',
+                    onTap: _openAppointments,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.smart_toy_outlined,
-                  label: 'Queue AI',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => SmartQueueAssistantScreen(
-                          provider: queueProvider,
+          // IntrinsicHeight gives the row a height to stretch into, so every
+          // tile matches the tallest even when a slab label wraps.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.smart_toy_outlined,
+                    label: 'Queue AI',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SmartQueueAssistantScreen(
+                            provider: queueProvider,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.history_outlined,
-                  label: 'Queue History',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => QueueHistoryScreen(provider: queueProvider),
-                      ),
-                    );
-                  },
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.history_outlined,
+                    label: 'Queue History',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              QueueHistoryScreen(provider: queueProvider),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 28),
           Row(
@@ -652,55 +701,53 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           if (addingDependent) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: dependentName,
-                      decoration: const InputDecoration(
-                        labelText: 'Name',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
+            GlassSurface(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: dependentName,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      prefixIcon: Icon(Icons.person_outline),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: dependentRelationship,
-                      decoration: const InputDecoration(
-                        labelText: 'Relationship',
-                        prefixIcon: Icon(Icons.family_restroom_outlined),
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: dependentRelationship,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship',
+                      prefixIcon: Icon(Icons.family_restroom_outlined),
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: savingDependent
-                                ? null
-                                : () => setState(() => addingDependent = false),
-                            child: const Text('Cancel'),
-                          ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: savingDependent
+                              ? null
+                              : () => setState(() => addingDependent = false),
+                          child: const Text('Cancel'),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: savingDependent ? null : _saveDependent,
-                            child: savingDependent
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Save member'),
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: savingDependent ? null : _saveDependent,
+                          child: savingDependent
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Save member'),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -727,65 +774,61 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (editingProfile) ...[
             const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: profileName,
-                      decoration: const InputDecoration(
-                        labelText: 'Full name',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
+            GlassSurface(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: profileName,
+                    decoration: const InputDecoration(
+                      labelText: 'Full name',
+                      prefixIcon: Icon(Icons.person_outline),
                     ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        _ProfileAvatar(
-                          imageData: pendingProfilePicture,
-                          user: widget.auth.user,
-                          radius: 30,
-                        ),
-                        const SizedBox(width: 14),
-                        OutlinedButton.icon(
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _ProfileAvatar(
+                        imageData: pendingProfilePicture,
+                        user: widget.auth.user,
+                        radius: 30,
+                      ),
+                      const SizedBox(width: 14),
+                      OutlinedButton.icon(
+                        onPressed: savingProfile ? null : _chooseProfilePicture,
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: const Text('Change photo'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
                           onPressed: savingProfile
                               ? null
-                              : _chooseProfilePicture,
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          label: const Text('Change photo'),
+                              : () => setState(() => editingProfile = false),
+                          child: const Text('Cancel'),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: savingProfile
-                                ? null
-                                : () => setState(() => editingProfile = false),
-                            child: const Text('Cancel'),
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: savingProfile ? null : _saveProfile,
+                          child: savingProfile
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Save changes'),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: savingProfile ? null : _saveProfile,
-                            child: savingProfile
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Save changes'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -796,55 +839,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _dependentTile(Dependent dependent) {
     if (editingDependentId == dependent.id) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              TextField(
-                controller: editDependentName,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
+      return GlassSurface(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: editDependentName,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                prefixIcon: Icon(Icons.person_outline),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: editDependentRelationship,
-                decoration: const InputDecoration(
-                  labelText: 'Relationship',
-                  prefixIcon: Icon(Icons.family_restroom_outlined),
-                ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: editDependentRelationship,
+              decoration: const InputDecoration(
+                labelText: 'Relationship',
+                prefixIcon: Icon(Icons.family_restroom_outlined),
               ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: savingDependentEdit
-                          ? null
-                          : _cancelDependentEdit,
-                      child: const Text('Cancel'),
-                    ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: savingDependentEdit
+                        ? null
+                        : _cancelDependentEdit,
+                    child: const Text('Cancel'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: savingDependentEdit
-                          ? null
-                          : () => _saveDependentEdit(dependent.id),
-                      child: savingDependentEdit
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save'),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: savingDependentEdit
+                        ? null
+                        : () => _saveDependentEdit(dependent.id),
+                    child: savingDependentEdit
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       );
     }
@@ -853,9 +895,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ? '?'
         : dependent.name.trim().substring(0, 1).toUpperCase();
     final deleting = deletingDependentId == dependent.id;
-    return Card(
+    return GlassSurface(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(child: Text(initial)),
+        leading: CircleAvatar(
+          backgroundColor: AppTheme.mint.withValues(alpha: 0.55),
+          child: Text(
+            initial,
+            style: const TextStyle(
+              color: AppTheme.navy,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
         title: Text(dependent.name),
         subtitle: Text(dependent.relationship),
         trailing: deleting
@@ -1072,6 +1125,24 @@ class _BrandLockup extends StatelessWidget {
   );
 }
 
+/// Decoded profile photos, keyed by their data URI.
+///
+/// Decoding on every build would hand Flutter a new byte list each time, which
+/// misses the image cache and re-uploads the photo to the GPU — a visible
+/// stutter every time the home screen rebuilds, such as on pull to refresh.
+final Map<String, MemoryImage?> _avatarImages = {};
+
+MemoryImage? _decodeAvatar(String source) =>
+    _avatarImages.putIfAbsent(source, () {
+      final comma = source.indexOf(',');
+      if (comma <= 0) return null;
+      try {
+        return MemoryImage(base64Decode(source.substring(comma + 1)));
+      } on FormatException {
+        return null;
+      }
+    });
+
 class _ProfileAvatar extends StatelessWidget {
   const _ProfileAvatar({this.user, this.imageData, required this.radius});
 
@@ -1084,14 +1155,7 @@ class _ProfileAvatar extends StatelessWidget {
     final source = imageData ?? user?.profilePicture;
     ImageProvider? image;
     if (source != null && source.startsWith('data:image/')) {
-      final comma = source.indexOf(',');
-      if (comma > 0) {
-        try {
-          image = MemoryImage(base64Decode(source.substring(comma + 1)));
-        } on FormatException {
-          image = null;
-        }
-      }
+      image = _decodeAvatar(source);
     } else if (source != null && source.startsWith('https://')) {
       // Google accounts arrive with a hosted avatar URL rather than a data URI.
       image = NetworkImage(source);
@@ -1140,64 +1204,53 @@ class _UpcomingAppointments extends StatelessWidget {
       return Column(
         children: [
           for (final appointment in list.take(3))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Card(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
+            GlassSurface(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              onTap: onTap,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: AppTheme.mint.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.event_rounded,
+                      color: AppTheme.navy,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(11),
-                          decoration: BoxDecoration(
-                            color: AppTheme.mint.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.event_rounded,
-                            color: AppTheme.navy,
-                          ),
+                        Text(
+                          appointment.doctorName,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                appointment.doctorName,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${AppDates.relativeDay(appointment.scheduledAt)}'
-                                ' · ${AppDates.time(appointment.scheduledAt)}',
-                                style: const TextStyle(
-                                  color: AppTheme.teal,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (appointment.hospitalName != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  appointment.hospitalName!,
-                                  style:
-                                      Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ],
-                            ],
+                        const SizedBox(height: 4),
+                        Text(
+                          '${AppDates.relativeDay(appointment.scheduledAt)}'
+                          ' · ${AppDates.time(appointment.scheduledAt)}',
+                          style: const TextStyle(
+                            color: AppTheme.teal,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppTheme.teal,
-                        ),
+                        if (appointment.hospitalName != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            appointment.hospitalName!,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
+                  const Icon(Icons.chevron_right_rounded, color: AppTheme.teal),
+                ],
               ),
             ),
         ],
@@ -1210,12 +1263,10 @@ class _CareCard extends StatelessWidget {
   const _CareCard();
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GlassSurface(
+    radius: 24,
+    tint: AppTheme.mint,
     padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: AppTheme.navy,
-      borderRadius: BorderRadius.circular(24),
-    ),
     child: Row(
       children: [
         Expanded(
@@ -1224,16 +1275,12 @@ class _CareCard extends StatelessWidget {
             children: [
               Text(
                 'Your care, simplified',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: Colors.white),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
               Text(
                 'Keep your appointments and loved ones close.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
@@ -1241,7 +1288,7 @@ class _CareCard extends StatelessWidget {
         const SizedBox(width: 12),
         const Icon(
           Icons.favorite_outline_rounded,
-          color: AppTheme.mint,
+          color: AppTheme.teal,
           size: 42,
         ),
       ],
@@ -1260,21 +1307,29 @@ class _ActionTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: AppTheme.teal),
-            const SizedBox(height: 18),
-            Text(label, style: Theme.of(context).textTheme.titleMedium),
-          ],
+  Widget build(BuildContext context) => GlassSurface(
+    radius: 20,
+    onTap: onTap,
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: AppTheme.mint.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: AppTheme.teal),
         ),
-      ),
+        const SizedBox(height: 16),
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontSize: 14),
+        ),
+      ],
     ),
   );
 }
@@ -1283,21 +1338,18 @@ class _EmptyDependents extends StatelessWidget {
   const _EmptyDependents();
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          const Icon(Icons.people_outline, color: AppTheme.teal, size: 30),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              'Add a family member to book care for them.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+  Widget build(BuildContext context) => GlassSurface(
+    child: Row(
+      children: [
+        const Icon(Icons.people_outline, color: AppTheme.teal, size: 30),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            'Add a family member to book care for them.',
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -1307,17 +1359,29 @@ class _ErrorMessage extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text(
-      message,
-      style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final error = Theme.of(context).colorScheme.error;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: error.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: error, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: error, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {

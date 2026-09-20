@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../services/queue_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 import '../queue/queue_provider.dart';
 import '../queue/queue_screen.dart';
 import 'appointment_status_chip.dart';
@@ -111,95 +112,111 @@ class _AppointmentDetailsScreenState extends State<AppointmentDetailsScreen> {
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) Navigator.of(context).pop(changed);
     },
-    child: Scaffold(
-      appBar: AppBar(title: const Text('Appointment')),
+    child: GlassScaffold(
+      title: 'Appointment',
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        // Content scrolls behind the translucent app bar.
+        padding: EdgeInsets.fromLTRB(20, 4 + glassTopInset(context), 20, 28),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  appointment.doctorName,
-                  style: Theme.of(context).textTheme.headlineLarge,
+          // The focal point of the screen: who, and where it stands.
+          GlassHeroSurface(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        appointment.doctorName,
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    AppointmentStatusChip(
+                      appointment: appointment,
+                      onDark: true,
+                    ),
+                  ],
                 ),
-              ),
-              AppointmentStatusChip(appointment: appointment),
-            ],
-          ),
-          if (appointment.doctorSpecialization != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              appointment.doctorSpecialization!,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _DetailRow(
-                    icon: Icons.event_rounded,
-                    label: 'When',
-                    value: AppDates.dateTime(appointment.scheduledAt),
+                if (appointment.doctorSpecialization != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    appointment.doctorSpecialization!,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
                   ),
-                  _DetailRow(
-                    icon: Icons.timelapse_rounded,
-                    label: 'Duration',
-                    value: '${appointment.durationMinutes} minutes',
-                  ),
-                  _DetailRow(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Patient',
-                    value: appointment.dependentRelationship == null
-                        ? appointment.patientLabel
-                        : '${appointment.patientLabel} '
-                              '(${appointment.dependentRelationship})',
-                  ),
-                  if (appointment.departmentName != null)
-                    _DetailRow(
-                      icon: Icons.medical_services_outlined,
-                      label: 'Department',
-                      value: appointment.departmentName!,
-                    ),
-                  if (appointment.hospitalName != null)
-                    _DetailRow(
-                      icon: Icons.local_hospital_outlined,
-                      label: 'Hospital',
-                      value: [
-                        appointment.hospitalName,
-                        appointment.hospitalAddress,
-                      ].whereType<String>().join('\n'),
-                    ),
-                  if (appointment.hospitalPhone != null)
-                    _DetailRow(
-                      icon: Icons.call_outlined,
-                      label: 'Contact',
-                      value: appointment.hospitalPhone!,
-                    ),
-                  if (appointment.consultationFee > 0)
-                    _DetailRow(
-                      icon: Icons.payments_outlined,
-                      label: 'Fee',
-                      value: 'Rs. ${appointment.consultationFee}',
-                    ),
-                  if (appointment.reason != null &&
-                      appointment.reason!.isNotEmpty)
-                    _DetailRow(
-                      icon: Icons.notes_rounded,
-                      label: 'Reason',
-                      value: appointment.reason!,
-                    ),
-                  if (appointment.rescheduledFrom != null)
-                    _DetailRow(
-                      icon: Icons.history_rounded,
-                      label: 'Moved from',
-                      value: AppDates.dateTime(appointment.rescheduledFrom!),
-                    ),
                 ],
-              ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          GlassSurface(
+            radius: 24,
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+            child: Column(
+              children: [
+                _DetailRow(
+                  icon: Icons.event_rounded,
+                  label: 'When',
+                  value: AppDates.dateTime(appointment.scheduledAt),
+                ),
+                _DetailRow(
+                  icon: Icons.timelapse_rounded,
+                  label: 'Duration',
+                  value: '${appointment.durationMinutes} minutes',
+                ),
+                _DetailRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Patient',
+                  value: appointment.dependentRelationship == null
+                      ? appointment.patientLabel
+                      : '${appointment.patientLabel} '
+                            '(${appointment.dependentRelationship})',
+                ),
+                if (appointment.departmentName != null)
+                  _DetailRow(
+                    icon: Icons.medical_services_outlined,
+                    label: 'Department',
+                    value: appointment.departmentName!,
+                  ),
+                if (appointment.hospitalName != null)
+                  _DetailRow(
+                    icon: Icons.local_hospital_outlined,
+                    label: 'Hospital',
+                    value: [
+                      appointment.hospitalName,
+                      appointment.hospitalAddress,
+                    ].whereType<String>().join('\n'),
+                  ),
+                if (appointment.hospitalPhone != null)
+                  _DetailRow(
+                    icon: Icons.call_outlined,
+                    label: 'Contact',
+                    value: appointment.hospitalPhone!,
+                  ),
+                if (appointment.consultationFee > 0)
+                  _DetailRow(
+                    icon: Icons.payments_outlined,
+                    label: 'Fee',
+                    value: 'Rs. ${appointment.consultationFee}',
+                  ),
+                if (appointment.reason != null &&
+                    appointment.reason!.isNotEmpty)
+                  _DetailRow(
+                    icon: Icons.notes_rounded,
+                    label: 'Reason',
+                    value: appointment.reason!,
+                  ),
+                if (appointment.rescheduledFrom != null)
+                  _DetailRow(
+                    icon: Icons.history_rounded,
+                    label: 'Moved from',
+                    value: AppDates.dateTime(appointment.rescheduledFrom!),
+                  ),
+              ],
             ),
           ),
           if (error != null) ...[
@@ -265,11 +282,15 @@ class _AppointmentDetailsScreenState extends State<AppointmentDetailsScreen> {
               ),
             ),
           ] else
-            Text(
-              appointment.status == AppointmentStatus.cancelled
-                  ? 'This appointment was cancelled.'
-                  : 'This appointment has already passed.',
-              style: Theme.of(context).textTheme.bodyLarge,
+            GlassSurface(
+              radius: 24,
+              padding: const EdgeInsets.all(18),
+              child: Text(
+                appointment.status == AppointmentStatus.cancelled
+                    ? 'This appointment was cancelled.'
+                    : 'This appointment has already passed.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             ),
         ],
       ),

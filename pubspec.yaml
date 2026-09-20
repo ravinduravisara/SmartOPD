@@ -62,6 +62,20 @@ flutter:
   assets:
     - assets/branding/hospital_management_system.png
 
+  # Roboto Slab (Apache 2.0, see assets/fonts/LICENSE.txt) is bundled rather
+  # than fetched at runtime, so the app keeps its typeface offline.
+  fonts:
+    - family: RobotoSlab
+      fonts:
+        - asset: assets/fonts/RobotoSlab-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/RobotoSlab-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/RobotoSlab-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/RobotoSlab-Bold.ttf
+          weight: 700
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

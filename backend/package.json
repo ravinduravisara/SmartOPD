@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "create-admin": "node scripts/createAdmin.js",
+    "test:admin": "node --test tests/admin.test.js"
   },
   "keywords": [],
   "author": "",

@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 
 /// Picks a day and a free slot for a doctor. Used both to book a new
 /// appointment and, when [reschedule] is set, to move an existing one.
@@ -122,59 +123,62 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(isReschedule ? 'Reschedule' : 'Book appointment'),
-    ),
+  Widget build(BuildContext context) => GlassScaffold(
+    title: isReschedule ? 'Reschedule' : 'Book appointment',
     body: AsyncView<Doctor>(
       future: doctorFuture,
       builder: (context, doctor) => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        // Content scrolls behind the translucent app bar.
+        padding: EdgeInsets.fromLTRB(20, 4 + glassTopInset(context), 20, 28),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    doctor.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+          // The doctor being booked is what the whole screen is about.
+          GlassHeroSurface(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doctor.name,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  doctor.subtitle,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                ),
+                if (doctor.hospitalName != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    doctor.subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    doctor.hospitalName!,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                   ),
-                  if (doctor.hospitalName != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      doctor.hospitalName!,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
           if (isReschedule) ...[
             const SizedBox(height: 14),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.history_rounded, color: AppTheme.teal),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Currently '
-                        '${AppDates.dateTime(widget.reschedule!.scheduledAt)}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
+            GlassSurface(
+              radius: 22,
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  const Icon(Icons.history_rounded, color: AppTheme.teal),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Currently '
+                      '${AppDates.dateTime(widget.reschedule!.scheduledAt)}',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -274,7 +278,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
   List<DateTime> _upcomingDays() {
     final today = AppDates.dayOnly(DateTime.now());
-    return List.generate(_daysAhead, (index) => today.add(Duration(days: index)));
+    return List.generate(
+      _daysAhead,
+      (index) => today.add(Duration(days: index)),
+    );
   }
 }
 
@@ -290,22 +297,35 @@ class _DayStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 74,
+    height: 82,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(bottom: 8),
       itemCount: days.length,
       separatorBuilder: (_, _) => const SizedBox(width: 10),
       itemBuilder: (context, index) {
         final day = days[index];
         final isSelected = AppDates.isSameDay(day, selected);
+        // Plain translucent tiles rather than GlassSurface: three weeks of
+        // BackdropFilters in one scrolling strip is far too expensive.
         return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => onSelected(day),
           child: Container(
-            width: 66,
+            width: 68,
             decoration: BoxDecoration(
-              color: isSelected ? AppTheme.teal : Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              color: isSelected ? AppTheme.teal : AppTheme.glassHigh,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? AppTheme.teal : AppTheme.glassBorder,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppTheme.glassShadow,
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -314,7 +334,7 @@ class _DayStrip extends StatelessWidget {
                   AppDates.weekday(day),
                   style: TextStyle(
                     fontSize: 12,
-                    color: isSelected ? Colors.white70 : const Color(0xFF607276),
+                    color: isSelected ? Colors.white70 : AppTheme.textMuted,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -330,7 +350,7 @@ class _DayStrip extends StatelessWidget {
                   AppDates.month(day),
                   style: TextStyle(
                     fontSize: 11,
-                    color: isSelected ? Colors.white70 : const Color(0xFF607276),
+                    color: isSelected ? Colors.white70 : AppTheme.textMuted,
                   ),
                 ),
               ],

@@ -1,4 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import '../../config/theme.dart';
+import '../../widgets/glass.dart';
 import '../queue/queue_provider.dart';
 
 class SmartQueueAssistantScreen extends StatefulWidget {
@@ -80,152 +84,199 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
     final queue = widget.provider.activeQueueData;
     final token = queue?['tokenNumber'] as String? ?? 'N/A';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        title: Row(
-          children: [
-            const Icon(Icons.smart_toy_rounded, color: Color(0xFF0284C7)),
-            const SizedBox(width: 8),
-            const Text(
-              'Smart Queue Assistant',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-            ),
-          ],
-        ),
-      ),
-      body: Column(
+    return GlassScaffold(
+      titleWidget: const Row(
         children: [
-          // Active Context Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: const Color(0xFF0F172A),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Active Token: $token',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'OPD Assistant Only',
-                    style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
+          Icon(Icons.smart_toy_rounded, color: AppTheme.teal),
+          SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'Smart Queue Assistant',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppTheme.navy),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-
-          // Messages list
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final m = _messages[index];
-                final isUser = m.sender == 'user';
-
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFF0284C7) : Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isUser ? 16 : 4),
-                        bottomRight: Radius.circular(isUser ? 4 : 16),
-                      ),
-                      boxShadow: isUser
-                          ? []
-                          : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-                    ),
-                    child: Text(
-                      m.text,
-                      style: TextStyle(
-                        color: isUser ? Colors.white : const Color(0xFF1E293B),
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Quick Query Chips
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _quickQueries.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final query = _quickQueries[index];
-                return ActionChip(
-                  backgroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  label: Text(query, style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
-                  onPressed: () => _handleSend(query),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Input field
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Colors.white,
-            child: SafeArea(
+        ],
+      ),
+      body: Padding(
+        padding: EdgeInsets.only(top: glassTopInset(context)),
+        child: Column(
+          children: [
+            // Active Context Header
+            GlassHeroSurface(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              radius: 18,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        hintText: 'Ask about your queue...',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        fillColor: const Color(0xFFF1F5F9),
-                        filled: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) => _handleSend(),
+                  Flexible(
+                    child: Text(
+                      'Active Token: $token',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF0284C7),
-                      foregroundColor: Colors.white,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.mint.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.mint.withValues(alpha: 0.45)),
                     ),
-                    icon: _sending
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.send_rounded),
-                    onPressed: () => _handleSend(),
+                    child: const Text(
+                      'OPD Assistant Only',
+                      style: TextStyle(color: AppTheme.mint, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // Messages list
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final m = _messages[index];
+                  final isUser = m.sender == 'user';
+                  final maxWidth = MediaQuery.of(context).size.width * 0.78;
+
+                  if (isUser) {
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.teal,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                            bottomLeft: Radius.circular(20),
+                            bottomRight: Radius.circular(6),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.teal.withValues(alpha: 0.25),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          m.text,
+                          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxWidth),
+                      child: GlassSurface(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        radius: 20,
+                        child: Text(
+                          m.text,
+                          style: const TextStyle(color: AppTheme.navy, fontSize: 14, height: 1.4),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Quick Query Chips
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _quickQueries.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final query = _quickQueries[index];
+                  return ActionChip(
+                    backgroundColor: Colors.white.withValues(alpha: 0.6),
+                    side: const BorderSide(color: AppTheme.glassBorder),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    label: Text(query, style: const TextStyle(fontSize: 12, color: AppTheme.navy)),
+                    onPressed: () => _handleSend(query),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Input field on a frosted bar
+            ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: Color(0x8CFFFFFF),
+                    border: Border(top: BorderSide(color: AppTheme.glassBorder)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: SafeArea(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              style: const TextStyle(color: AppTheme.navy),
+                              decoration: InputDecoration(
+                                hintText: 'Ask about your queue...',
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                                fillColor: Colors.white.withValues(alpha: 0.55),
+                                filled: true,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: const BorderSide(color: AppTheme.glassBorder),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: const BorderSide(color: AppTheme.glassBorder),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: const BorderSide(color: AppTheme.teal, width: 1.4),
+                                ),
+                              ),
+                              onSubmitted: (_) => _handleSend(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            style: IconButton.styleFrom(
+                              backgroundColor: AppTheme.teal,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.all(12),
+                            ),
+                            icon: _sending
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.send_rounded),
+                            onPressed: () => _handleSend(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

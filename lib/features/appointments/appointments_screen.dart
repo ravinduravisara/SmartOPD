@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 import '../queue/queue_provider.dart';
 import 'appointment_details_screen.dart';
 import 'appointment_status_chip.dart';
@@ -60,14 +61,16 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     },
     child: DefaultTabController(
       length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('My appointments'),
-          bottom: const TabBar(
-            labelColor: AppTheme.teal,
-            indicatorColor: AppTheme.teal,
-            tabs: [Tab(text: 'Upcoming'), Tab(text: 'History')],
-          ),
+      child: GlassScaffold(
+        title: 'My appointments',
+        bottom: const TabBar(
+          labelColor: AppTheme.teal,
+          unselectedLabelColor: AppTheme.textMuted,
+          indicatorColor: AppTheme.teal,
+          indicatorWeight: 3,
+          dividerColor: Colors.transparent,
+          labelStyle: TextStyle(fontWeight: FontWeight.w700),
+          tabs: [Tab(text: 'Upcoming'), Tab(text: 'History')],
         ),
         body: TabBarView(
           children: [
@@ -110,12 +113,23 @@ class _AppointmentList extends StatelessWidget {
   @override
   Widget build(BuildContext context) => RefreshIndicator(
     onRefresh: () async => onRefresh(),
+    // The spinner has to clear the app bar and its tab strip.
+    edgeOffset: glassTopInset(context) + kTextTabBarHeight,
+    color: AppTheme.teal,
+    backgroundColor: Colors.white.withValues(alpha: 0.9),
     child: AsyncView<List<Appointment>>(
       future: future,
       onRetry: onRetry,
       builder: (context, list) => ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        // The app bar here also carries the tab strip, so the first card has
+        // to start below both.
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16 + glassTopInset(context) + kTextTabBarHeight,
+          20,
+          28,
+        ),
         children: [
           if (list.isEmpty)
             EmptyView(
@@ -127,7 +141,7 @@ class _AppointmentList extends StatelessWidget {
               appointment: appointment,
               onTap: () => onTap(appointment),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
           ],
         ],
       ),
@@ -145,93 +159,86 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => GlassSurface(
+    onTap: onTap,
+    radius: 24,
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    appointment.doctorName,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                AppointmentStatusChip(appointment: appointment),
-              ],
+            Expanded(
+              child: Text(
+                appointment.doctorName,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-            const SizedBox(height: 6),
-            if (appointment.doctorSpecialization != null)
-              Text(
-                appointment.doctorSpecialization!,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(
-                  Icons.event_rounded,
-                  size: 16,
-                  color: AppTheme.teal,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    AppDates.dateTime(appointment.scheduledAt),
-                    style: const TextStyle(
-                      color: AppTheme.navy,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (appointment.hospitalName != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.local_hospital_outlined,
-                    size: 16,
-                    color: AppTheme.teal,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      appointment.hospitalName!,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (appointment.dependentName != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline_rounded,
-                    size: 16,
-                    color: AppTheme.teal,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'For ${appointment.dependentName}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            const SizedBox(width: 12),
+            AppointmentStatusChip(appointment: appointment),
           ],
         ),
-      ),
+        const SizedBox(height: 6),
+        if (appointment.doctorSpecialization != null)
+          Text(
+            appointment.doctorSpecialization!,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Icon(Icons.event_rounded, size: 16, color: AppTheme.teal),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                AppDates.dateTime(appointment.scheduledAt),
+                style: const TextStyle(
+                  color: AppTheme.navy,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (appointment.hospitalName != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(
+                Icons.local_hospital_outlined,
+                size: 16,
+                color: AppTheme.teal,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  appointment.hospitalName!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (appointment.dependentName != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(
+                Icons.person_outline_rounded,
+                size: 16,
+                color: AppTheme.teal,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'For ${appointment.dependentName}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     ),
   );
 }

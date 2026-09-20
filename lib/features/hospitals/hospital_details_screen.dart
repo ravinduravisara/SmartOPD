@@ -5,6 +5,7 @@ import '../../models/hospital.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/error_widget.dart';
+import '../../widgets/glass.dart';
 import '../doctors/doctors_screen.dart';
 
 class HospitalDetailsScreen extends StatefulWidget {
@@ -51,50 +52,49 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Hospital')),
+  Widget build(BuildContext context) => GlassScaffold(
+    title: 'Hospital',
     body: AsyncView<HospitalDetails>(
       future: details,
       onRetry: _load,
       builder: (context, data) => ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        // Extra top padding so the list clears the translucent app bar.
+        padding: EdgeInsets.fromLTRB(20, glassTopInset(context) + 4, 20, 28),
         children: [
-          Text(
-            data.hospital.name,
-            style: Theme.of(context).textTheme.headlineLarge,
+          GlassSurface(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data.hospital.name,
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 10),
+                _InfoRow(icon: Icons.place_outlined, text: data.hospital.city),
+                if (data.hospital.address != null)
+                  _InfoRow(
+                    icon: Icons.map_outlined,
+                    text: data.hospital.address!,
+                  ),
+                if (data.hospital.phone != null)
+                  _InfoRow(icon: Icons.call_outlined, text: data.hospital.phone!),
+                if (data.hospital.about != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    data.hospital.about!,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          _InfoRow(icon: Icons.place_outlined, text: data.hospital.city),
-          if (data.hospital.address != null)
-            _InfoRow(
-              icon: Icons.map_outlined,
-              text: data.hospital.address!,
-            ),
-          if (data.hospital.phone != null)
-            _InfoRow(icon: Icons.call_outlined, text: data.hospital.phone!),
-          if (data.hospital.about != null) ...[
-            const SizedBox(height: 14),
-            Text(
-              data.hospital.about!,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
           const SizedBox(height: 18),
 
           // Live OPD Queue Preview Card (Module 3 Requirement)
-          Container(
+          GlassHeroSurface(
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
+            radius: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -115,7 +115,7 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
                         ],
                       ),
                     ),
-                    const Text('General OPD', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w600)),
+                    const Text('General OPD', style: TextStyle(color: Color(0xFFBBD2D6), fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -125,7 +125,7 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Now Serving', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const Text('Now Serving', style: TextStyle(color: Color(0xFFBBD2D6), fontSize: 11)),
                         const SizedBox(height: 2),
                         Text(
                           data.hospital.name.contains('Colombo') ? 'A-101' : 'None',
@@ -136,18 +136,18 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Patients Waiting', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const Text('Patients Waiting', style: TextStyle(color: Color(0xFFBBD2D6), fontSize: 11)),
                         const SizedBox(height: 2),
                         Text(
                           data.hospital.name.contains('Colombo') ? '2 Patients' : '0 Patients',
-                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 16, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: AppTheme.mint, fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Est. Wait Time', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const Text('Est. Wait Time', style: TextStyle(color: Color(0xFFBBD2D6), fontSize: 11)),
                         const SizedBox(height: 2),
                         Text(
                           data.hospital.name.contains('Colombo') ? '~12 min' : '~0 min',
@@ -174,7 +174,7 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
               icon: Icons.apartment_outlined,
               message: 'No departments listed for this hospital yet.',
             ),
-          for (final department in data.departments) ...[
+          for (final department in data.departments)
             _DepartmentCard(
               department: department,
               onTap: () => _openDoctors(
@@ -182,8 +182,6 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
                 title: department.name,
               ),
             ),
-            const SizedBox(height: 12),
-          ],
         ],
       ),
     ),
@@ -217,48 +215,54 @@ class _DepartmentCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.medical_services_outlined, color: AppTheme.teal),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    department.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (department.description != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      department.description!,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Text(
-                    '${department.doctorCount} '
-                    '${department.doctorCount == 1 ? 'doctor' : 'doctors'}',
-                    style: const TextStyle(
-                      color: AppTheme.teal,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppTheme.teal),
-          ],
+  Widget build(BuildContext context) => GlassSurface(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
+    onTap: onTap,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.teal.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(
+            Icons.medical_services_outlined,
+            color: AppTheme.teal,
+          ),
         ),
-      ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                department.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (department.description != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  department.description!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                '${department.doctorCount} '
+                '${department.doctorCount == 1 ? 'doctor' : 'doctors'}',
+                style: const TextStyle(
+                  color: AppTheme.teal,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: AppTheme.teal),
+      ],
     ),
   );
 }

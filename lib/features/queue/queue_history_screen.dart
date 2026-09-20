@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../config/theme.dart';
+import '../../widgets/glass.dart';
 import 'queue_provider.dart';
 
 class QueueHistoryScreen extends StatefulWidget {
@@ -18,29 +20,27 @@ class _QueueHistoryScreenState extends State<QueueHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Queue History'),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-      ),
+    return GlassScaffold(
+      title: 'Queue History',
       body: ListenableBuilder(
         listenable: widget.provider,
         builder: (context, _) {
           final history = widget.provider.queueHistory;
 
           if (history.isEmpty) {
-            return const Center(
-              child: Text(
-                'No past queue sessions found.',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+            return Padding(
+              padding: EdgeInsets.only(top: glassTopInset(context)),
+              child: const Center(
+                child: Text(
+                  'No past queue sessions found.',
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
+                ),
               ),
             );
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 16 + glassTopInset(context), 16, 24),
             itemCount: history.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
@@ -50,22 +50,19 @@ class _QueueHistoryScreenState extends State<QueueHistoryScreen> {
               final token = item['tokenNumber'] as String? ?? 'A-000';
               final status = item['status'] as String? ?? 'COMPLETED';
 
-              return Container(
+              final isCompleted = status == 'COMPLETED';
+              final statusColour = isCompleted ? AppTheme.teal : AppTheme.textMuted;
+
+              return GlassSurface(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
-                  ],
-                ),
+                radius: 20,
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppTheme.navy,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Text(
                         token,
@@ -79,28 +76,30 @@ class _QueueHistoryScreenState extends State<QueueHistoryScreen> {
                         children: [
                           Text(
                             hospital['name'] as String? ?? 'Hospital',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.navy),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             doctor['name'] as String? ?? 'Doctor',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: status == 'COMPLETED' ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
+                        color: statusColour.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: statusColour.withValues(alpha: 0.45)),
                       ),
                       child: Text(
                         status,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: status == 'COMPLETED' ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                          color: statusColour,
                         ),
                       ),
                     ),
