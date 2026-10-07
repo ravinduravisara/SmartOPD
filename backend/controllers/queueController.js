@@ -94,22 +94,19 @@ exports.checkIn = async (req, res) => {
 			return res.status(403).json({ message: 'Unauthorized appointment check-in' });
 		}
 
-		// Ensure check-in is only allowed on the appointment date
-		const apptDate = new Date(appointment.scheduledAt);
-		const today = new Date();
-		const isSameDay = apptDate.getFullYear() === today.getFullYear() &&
-			apptDate.getMonth() === today.getMonth() &&
-			apptDate.getDate() === today.getDate();
-
-		if (!isSameDay) {
-			const formattedApptDate = apptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-			return res.status(400).json({
-				message: `Check-in is only allowed on the day of your appointment (${formattedApptDate}).`
-			});
+		// Check appointment status
+		if (appointment.status === 'cancelled') {
+			return res.status(400).json({ message: 'Cannot check in for a cancelled appointment' });
+		}
+		if (appointment.status === 'completed') {
+			return res.status(400).json({ message: 'This appointment is already completed' });
 		}
 
-		// Check if queue entry already exists
-		let queueEntry = await Queue.findOne({ appointmentId });
+		// Check if active queue entry already exists
+		let queueEntry = await Queue.findOne({
+			appointmentId,
+			status: { $in: ['WAITING', 'CHECKED_IN', 'CALLED', 'IN_CONSULTATION'] }
+		});
 		if (queueEntry) {
 			if (queueEntry.status === 'WAITING') {
 				queueEntry.status = 'CHECKED_IN';

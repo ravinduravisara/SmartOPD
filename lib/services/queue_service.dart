@@ -46,4 +46,16 @@ class QueueService {
   Future<void> markAllNotificationsRead() async {
     await apiService.request('POST', '/notifications/read-all');
   }
+
+  Future<void> cancelQueue(String queueId) async {
+    await apiService.request('DELETE', '/queues/$queueId');
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await apiService.request('DELETE', '/notifications/$notificationId');
+  }
+
+  Future<void> clearAllNotifications() async {
+    await apiService.request('DELETE', '/notifications');
+  }
 }
