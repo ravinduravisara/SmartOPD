@@ -10,6 +10,8 @@ import 'data/catalog_service.dart';
 import 'data/dashboard_service.dart';
 import 'audit_activity_screen.dart';
 import 'user_management_screen.dart';
+import '../../services/queue_service.dart';
+import 'queue_calling_console_screen.dart';
 
 class _ManagementAction {
   const _ManagementAction(this.title, this.subtitle, this.icon, this.onTap);
@@ -172,7 +174,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final AdminDashboardService _dashboard = AdminDashboardService(
     widget.auth.service.api,
   );
+  late final QueueService _queueService = QueueService(
+    widget.auth.service.api,
+  );
   late Future<AdminDashboardMetrics> _metrics;
+
+  void _openQueueCallingConsole() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QueueCallingConsoleScreen(
+          queueService: _queueService,
+          catalogService: _catalog,
+        ),
+      ),
+    );
+  }
 
   /// Status hues that have to stay apart from each other and from the teal.
   static const _flow = Color(0xFF438AF0);
@@ -216,6 +232,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.campaign_rounded, color: AppTheme.teal),
+          tooltip: 'Doctor Calling Console',
+          onPressed: _openQueueCallingConsole,
+        ),
         PopupMenuButton<String>(
           tooltip: 'Administrator account',
           onSelected: (value) {
@@ -546,6 +567,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
       ],
     ),
+    const SizedBox(height: 14),
+    GlassSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      radius: 18,
+      tint: AppTheme.teal,
+      borderColor: AppTheme.teal.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.teal.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.campaign_rounded, color: AppTheme.teal, size: 26),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Live Token Calling Console',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.navy),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Call next token, skip & complete consultations',
+                  style: TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.teal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: _openQueueCallingConsole,
+            child: const Text('Open Console', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+          ),
+        ],
+      ),
+    ),
     const SizedBox(height: 16),
     Text('Management', style: Theme.of(context).textTheme.titleMedium),
     const SizedBox(height: 10),
@@ -720,6 +787,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Live reports are shown below.')),
         ),
+      ),
+      _ManagementAction(
+        'Queue Calling',
+        'Live OPD Calling',
+        Icons.campaign_rounded,
+        _openQueueCallingConsole,
       ),
       _ManagementAction(
         'Administrators',

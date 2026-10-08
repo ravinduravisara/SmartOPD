@@ -46,4 +46,41 @@ class QueueService {
   Future<void> markAllNotificationsRead() async {
     await apiService.request('POST', '/notifications/read-all');
   }
+
+  Future<Map<String, dynamic>> getDoctorQueue({String? doctorId}) async {
+    final path = doctorId != null && doctorId.isNotEmpty && doctorId != 'all'
+        ? '/queues/doctor-queue?doctorId=$doctorId'
+        : '/queues/doctor-queue';
+    final response = await apiService.request('GET', path);
+    return response['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> callNextToken({String? doctorId, String? queueId}) async {
+    final body = <String, dynamic>{};
+    if (doctorId != null && doctorId != 'all') body['doctorId'] = doctorId;
+    if (queueId != null) body['queueId'] = queueId;
+    final response = await apiService.request('POST', '/queues/call-next', body: body);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> skipToken(String queueId) async {
+    final response = await apiService.request('POST', '/queues/skip', body: {
+      'queueId': queueId,
+    });
+    return response;
+  }
+
+  Future<Map<String, dynamic>> completeConsultation(String queueId) async {
+    final response = await apiService.request('POST', '/queues/complete', body: {
+      'queueId': queueId,
+    });
+    return response;
+  }
+
+  Future<Map<String, dynamic>> markNoShow(String queueId) async {
+    final response = await apiService.request('POST', '/queues/no-show', body: {
+      'queueId': queueId,
+    });
+    return response;
+  }
 }

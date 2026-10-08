@@ -259,20 +259,79 @@ exports.getPatientQueueHistory = async (req, res) => {
 	}
 };
 
+// Get queue list for Doctor/Admin console
+exports.getDoctorQueue = async (req, res) => {
+	try {
+		const { doctorId } = req.query;
+		const startOfDay = new Date();
+		startOfDay.setHours(0, 0, 0, 0);
+
+		const filter = {
+			createdAt: { $gte: startOfDay }
+		};
+		if (doctorId && doctorId !== 'all') {
+			filter.doctorId = doctorId;
+		}
+
+		const waiting = await Queue.find({
+			...filter,
+			status: { $in: ['CHECKED_IN', 'WAITING'] }
+		})
+		.populate('patientId', 'name email')
+		.populate('doctorId', 'name specialization roomNumber')
+		.sort({ queuePosition: 1 });
+
+		const current = await Queue.findOne({
+			...filter,
+			status: { $in: ['CALLED', 'IN_CONSULTATION'] }
+		})
+		.populate('patientId', 'name email')
+		.populate('doctorId', 'name specialization roomNumber');
+
+		const completed = await Queue.find({
+			...filter,
+			status: { $in: ['COMPLETED', 'SKIPPED', 'NO_SHOW'] }
+		})
+		.populate('patientId', 'name email')
+		.populate('doctorId', 'name')
+		.sort({ updatedAt: -1 })
+		.limit(15);
+
+		res.json({
+			success: true,
+			data: {
+				current,
+				waiting,
+				completed,
+				totalWaiting: waiting.length
+			}
+		});
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ message: 'Error fetching doctor queue' });
+	}
+};
+
 // Staff Call Next Patient
 exports.callNextToken = async (req, res) => {
 	try {
-		const { doctorId } = req.body;
+		const { doctorId, queueId } = req.body;
 
 		const startOfDay = new Date();
 		startOfDay.setHours(0, 0, 0, 0);
 
-		// Complete any currently called/in_consultation entry if requested
-		const nextInQueue = await Queue.findOne({
-			doctorId,
+		const query = {
 			status: { $in: ['CHECKED_IN', 'WAITING'] },
 			createdAt: { $gte: startOfDay }
-		}).sort({ queuePosition: 1 });
+		};
+		if (doctorId && doctorId !== 'all') {
+			query.doctorId = doctorId;
+		}
+		if (queueId) {
+			query._id = queueId;
+		}
+
+		const nextInQueue = await Queue.findOne(query).sort({ queuePosition: 1 });
 
 		if (!nextInQueue) {
 			return res.status(404).json({ message: 'No patients waiting in queue' });
@@ -290,7 +349,10 @@ exports.callNextToken = async (req, res) => {
 			type: 'YOUR_TURN'
 		});
 
-		notifyDoctorQueueUpdate(doctorId, { action: 'token_called', tokenNumber: nextInQueue.tokenNumber });
+		const docIdStr = nextInQueue.doctorId ? nextInQueue.doctorId.toString() : doctorId;
+		if (docIdStr) {
+			notifyDoctorQueueUpdate(docIdStr, { action: 'token_called', tokenNumber: nextInQueue.tokenNumber });
+		}
 		notifyPatientQueueUpdate(nextInQueue.patientId, { action: 'your_turn', queue: nextInQueue });
 
 		res.json({ success: true, data: nextInQueue });
