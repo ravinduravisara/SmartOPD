@@ -94,22 +94,19 @@ exports.checkIn = async (req, res) => {
 			return res.status(403).json({ message: 'Unauthorized appointment check-in' });
 		}
 
-		// Ensure check-in is only allowed on the appointment date
-		const apptDate = new Date(appointment.scheduledAt);
-		const today = new Date();
-		const isSameDay = apptDate.getFullYear() === today.getFullYear() &&
-			apptDate.getMonth() === today.getMonth() &&
-			apptDate.getDate() === today.getDate();
-
-		if (!isSameDay) {
-			const formattedApptDate = apptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-			return res.status(400).json({
-				message: `Check-in is only allowed on the day of your appointment (${formattedApptDate}).`
-			});
+		// Check appointment status
+		if (appointment.status === 'cancelled') {
+			return res.status(400).json({ message: 'Cannot check in for a cancelled appointment' });
+		}
+		if (appointment.status === 'completed') {
+			return res.status(400).json({ message: 'This appointment is already completed' });
 		}
 
-		// Check if queue entry already exists
-		let queueEntry = await Queue.findOne({ appointmentId });
+		// Check if active queue entry already exists
+		let queueEntry = await Queue.findOne({
+			appointmentId,
+			status: { $in: ['WAITING', 'CHECKED_IN', 'CALLED', 'IN_CONSULTATION'] }
+		});
 		if (queueEntry) {
 			if (queueEntry.status === 'WAITING') {
 				queueEntry.status = 'CHECKED_IN';
@@ -428,6 +425,51 @@ exports.markNoShow = async (req, res) => {
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ message: 'Error marking no-show' });
+	}
+};
+
+// Patient Cancel Queue Entry (DELETE operation)
+exports.cancelQueue = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const patientId = (req.userRecord && req.userRecord._id) || (req.user && (req.user._id || req.user.id));
+
+		const queue = await Queue.findById(id);
+		if (!queue) return res.status(404).json({ message: 'Queue record not found' });
+
+		// Ensure patient owns this queue entry
+		if (queue.patientId.toString() !== patientId.toString()) {
+			return res.status(403).json({ message: 'You can only cancel your own queue entry' });
+		}
+
+		// Only allow cancellation of active queue entries
+		const cancellableStatuses = ['WAITING', 'CHECKED_IN'];
+		if (!cancellableStatuses.includes(queue.status)) {
+			return res.status(400).json({ message: `Cannot cancel queue with status: ${queue.status}` });
+		}
+
+		queue.status = 'CANCELLED';
+		queue.completedAt = new Date();
+		await queue.save();
+
+		// Send cancellation notification
+		await sendQueueNotification({
+			userId: patientId,
+			queueId: queue._id,
+			title: 'Queue Cancelled',
+			message: `Your queue token ${queue.tokenNumber} has been cancelled.`,
+			type: 'COMPLETED'
+		});
+
+		// Notify doctor about the cancellation
+		if (queue.doctorId) {
+			notifyDoctorQueueUpdate(queue.doctorId.toString(), { action: 'patient_cancelled', queueId: id });
+		}
+
+		res.json({ success: true, message: 'Queue entry cancelled successfully', data: queue });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ message: 'Error cancelling queue entry' });
 	}
 };
 

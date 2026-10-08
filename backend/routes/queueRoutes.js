@@ -21,5 +21,6 @@ router.post('/call-next', queueController.callNextToken);
 router.post('/skip', queueController.skipToken);
 router.post('/complete', queueController.completeConsultation);
 router.post('/no-show', queueController.markNoShow);
+router.delete('/:id', queueController.cancelQueue);
 
 module.exports = router;

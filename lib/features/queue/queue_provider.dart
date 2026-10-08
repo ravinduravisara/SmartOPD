@@ -162,6 +162,37 @@ class QueueProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<bool> cancelQueue(String queueId) async {
+    try {
+      await queueService.cancelQueue(queueId);
+      activeQueueData = null;
+      activeMetrics = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      await queueService.deleteNotification(notificationId);
+      notifications.removeWhere((n) => (n as Map<String, dynamic>)['_id'] == notificationId);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> clearAllNotifications() async {
+    try {
+      await queueService.clearAllNotifications();
+      notifications.clear();
+      unreadNotificationsCount = 0;
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> fetchNearbyHospitals() async {
     try {
       nearbyHospitals = await queueService.getNearbyHospitals();

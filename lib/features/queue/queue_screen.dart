@@ -124,6 +124,8 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
                             _buildStatusBanner(provider),
                             const SizedBox(height: 24),
                             _buildProgressTimeline(provider),
+                            const SizedBox(height: 16),
+                            _buildCancelButton(provider),
                           ],
                         ),
                       ),
@@ -478,6 +480,57 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
             }),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCancelButton(QueueProvider provider) {
+    final status = provider.activeQueueData?['status'] ?? '';
+    final canCancel = status == 'CHECKED_IN' || status == 'WAITING';
+    if (!canCancel) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFDC2626),
+          side: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        icon: const Icon(Icons.cancel_outlined),
+        label: const Text('Cancel Queue', style: TextStyle(fontWeight: FontWeight.bold)),
+        onPressed: () async {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Cancel Queue?'),
+              content: const Text('Are you sure you want to cancel your queue entry? This cannot be undone.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Yes, Cancel', style: TextStyle(color: Color(0xFFDC2626))),
+                ),
+              ],
+            ),
+          );
+          if (confirm == true && mounted) {
+            final queueId = provider.activeQueueData?['_id'] as String?;
+            if (queueId != null) {
+              final success = await provider.cancelQueue(queueId);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? 'Queue cancelled successfully.' : (provider.error ?? 'Failed to cancel.')),
+                    backgroundColor: success ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                  ),
+                );
+                if (success) Navigator.of(context).pop();
+              }
+            }
+          }
+        },
       ),
     );
   }

@@ -27,6 +27,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () => widget.provider.markAllNotificationsRead(),
           child: const Text('Mark all read', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
+        IconButton(
+          icon: const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626)),
+          tooltip: 'Clear All',
+          onPressed: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('Clear All Notifications?'),
+                content: const Text('This will permanently delete all your notifications.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Clear All', style: TextStyle(color: Color(0xFFDC2626))),
+                  ),
+                ],
+              ),
+            );
+            if (confirm == true) widget.provider.clearAllNotifications();
+          },
+        ),
       ],
       body: ListenableBuilder(
         listenable: widget.provider,
@@ -57,64 +78,88 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
               final iconInfo = _getNotificationIcon(type);
 
-              return GlassSurface(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(16),
-                radius: 20,
-                tint: readStatus ? null : AppTheme.teal,
-                borderColor: readStatus ? null : AppTheme.teal.withValues(alpha: 0.4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: iconInfo.color.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: iconInfo.color.withValues(alpha: 0.45)),
+              final notifId = n['_id'] as String? ?? '';
+              return Dismissible(
+                key: Key(notifId),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+                  ),
+                  child: const Icon(Icons.delete_rounded, color: Color(0xFFDC2626)),
+                ),
+                onDismissed: (_) => widget.provider.deleteNotification(notifId),
+                child: GlassSurface(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(16),
+                  radius: 20,
+                  tint: readStatus ? null : AppTheme.teal,
+                  borderColor: readStatus ? null : AppTheme.teal.withValues(alpha: 0.4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: iconInfo.color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconInfo.color.withValues(alpha: 0.45)),
+                        ),
+                        child: Icon(iconInfo.icon, color: iconInfo.color, size: 20),
                       ),
-                      child: Icon(iconInfo.icon, color: iconInfo.color, size: 20),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  title,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: readStatus ? FontWeight.bold : FontWeight.w900,
-                                    color: AppTheme.navy,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: readStatus ? FontWeight.bold : FontWeight.w900,
+                                      color: AppTheme.navy,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              if (!readStatus) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  margin: const EdgeInsets.only(top: 4),
-                                  decoration: const BoxDecoration(
-                                    color: AppTheme.teal,
-                                    shape: BoxShape.circle,
+                                if (!readStatus) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.only(top: 4),
+                                    decoration: const BoxDecoration(
+                                      color: AppTheme.teal,
+                                      shape: BoxShape.circle,
+                                    ),
                                   ),
+                                ],
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Delete',
+                                  onPressed: () => widget.provider.deleteNotification(notifId),
                                 ),
                               ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            message,
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, height: 1.35),
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              message,
+                              style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, height: 1.35),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },

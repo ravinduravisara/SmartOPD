@@ -27,9 +27,10 @@ class QueueService {
     return response['data'] as List<dynamic>? ?? [];
   }
 
-  Future<String> askQueueAssistant(String query) async {
+  Future<String> askQueueAssistant(String query, {String language = 'en'}) async {
     final response = await apiService.request('POST', '/queues/assistant', body: {
       'query': query,
+      'language': language,
     });
     return response['reply'] as String? ?? 'No response received.';
   }
@@ -82,5 +83,17 @@ class QueueService {
       'queueId': queueId,
     });
     return response;
+  }
+
+  Future<void> cancelQueue(String queueId) async {
+    await apiService.request('DELETE', '/queues/$queueId');
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await apiService.request('DELETE', '/notifications/$notificationId');
+  }
+
+  Future<void> clearAllNotifications() async {
+    await apiService.request('DELETE', '/notifications');
   }
 }
