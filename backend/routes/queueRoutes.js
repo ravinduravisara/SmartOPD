@@ -16,6 +16,7 @@ router.get('/nearby-hospitals', queueController.getNearbyHospitals);
 router.post('/assistant', askQueueAssistant);
 
 // Staff Queue Operations
+router.get('/doctor-queue', queueController.getDoctorQueue);
 router.post('/call-next', queueController.callNextToken);
 router.post('/skip', queueController.skipToken);
 router.post('/complete', queueController.completeConsultation);

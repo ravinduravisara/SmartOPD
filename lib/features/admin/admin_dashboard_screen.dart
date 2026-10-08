@@ -10,6 +10,8 @@ import 'catalog/departments_tab.dart';
 import 'catalog/doctors_tab.dart';
 import 'catalog/hospitals_tab.dart';
 import 'data/catalog_service.dart';
+import '../../services/queue_service.dart';
+import '../queue/staff_queue_console_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({required this.auth, super.key});
@@ -25,6 +27,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   /// The catalog the booking flow reads: cities, hospitals, departments and
   /// doctors. It shares the signed-in admin's client, so it carries the token.
   late final AdminCatalogService _catalog = AdminCatalogService(
+    widget.auth.service.api,
+  );
+
+  late final QueueService _queueService = QueueService(
     widget.auth.service.api,
   );
 
@@ -157,6 +163,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.campaign_rounded, color: AppTheme.teal),
+          tooltip: 'Live Queue & Token Console',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => StaffQueueConsoleScreen(queueService: _queueService),
+              ),
+            );
+          },
+        ),
         PopupMenuButton<String>(
           tooltip: 'Administrator account',
           onSelected: (value) {
@@ -366,6 +383,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             'General operations at a glance',
             style: TextStyle(color: Color(0xCCD9F2EE), fontSize: 12.5),
+          ),
+        ],
+      ),
+    ),
+    const SizedBox(height: 16),
+    GlassSurface(
+      padding: const EdgeInsets.all(16),
+      radius: 20,
+      tint: AppTheme.teal,
+      borderColor: AppTheme.teal.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.teal.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.campaign_rounded, color: AppTheme.teal, size: 28),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Live Queue & Calling Console',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.navy),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Call next token, skip & complete consultations',
+                  style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.teal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => StaffQueueConsoleScreen(queueService: _queueService),
+                ),
+              );
+            },
+            child: const Text('Open Console', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ],
       ),

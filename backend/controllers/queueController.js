@@ -259,17 +259,25 @@ exports.getPatientQueueHistory = async (req, res) => {
 // Staff Call Next Patient
 exports.callNextToken = async (req, res) => {
 	try {
-		const { doctorId } = req.body;
+		const { doctorId, queueId } = req.body;
 
 		const startOfDay = new Date();
 		startOfDay.setHours(0, 0, 0, 0);
 
-		// Complete any currently called/in_consultation entry if requested
-		const nextInQueue = await Queue.findOne({
-			doctorId,
-			status: { $in: ['CHECKED_IN', 'WAITING'] },
-			createdAt: { $gte: startOfDay }
-		}).sort({ queuePosition: 1 });
+		let nextInQueue = null;
+
+		if (queueId) {
+			nextInQueue = await Queue.findById(queueId);
+		} else {
+			const query = {
+				status: { $in: ['CHECKED_IN', 'WAITING'] },
+				createdAt: { $gte: startOfDay }
+			};
+			if (doctorId) {
+				query.doctorId = doctorId;
+			}
+			nextInQueue = await Queue.findOne(query).sort({ queuePosition: 1 });
+		}
 
 		if (!nextInQueue) {
 			return res.status(404).json({ message: 'No patients waiting in queue' });
@@ -287,7 +295,10 @@ exports.callNextToken = async (req, res) => {
 			type: 'YOUR_TURN'
 		});
 
-		notifyDoctorQueueUpdate(doctorId, { action: 'token_called', tokenNumber: nextInQueue.tokenNumber });
+		const dId = (nextInQueue.doctorId || doctorId || '').toString();
+		if (dId) {
+			notifyDoctorQueueUpdate(dId, { action: 'token_called', tokenNumber: nextInQueue.tokenNumber });
+		}
 		notifyPatientQueueUpdate(nextInQueue.patientId, { action: 'your_turn', queue: nextInQueue });
 
 		res.json({ success: true, data: nextInQueue });
@@ -461,5 +472,53 @@ exports.getNearbyHospitals = async (req, res) => {
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ message: 'Error loading nearby hospitals' });
+	}
+};
+
+// Staff / Doctor Live Queue Dashboard Endpoint
+exports.getDoctorQueue = async (req, res) => {
+	try {
+		const doctorId = req.query.doctorId;
+		const startOfDay = new Date();
+		startOfDay.setHours(0, 0, 0, 0);
+		const endOfDay = new Date();
+		endOfDay.setHours(23, 59, 59, 999);
+
+		const query = {
+			createdAt: { $gte: startOfDay, $lte: endOfDay }
+		};
+		if (doctorId && doctorId !== 'all') {
+			query.doctorId = doctorId;
+		}
+
+		const allQueues = await Queue.find(query)
+			.populate('patientId', 'name phone email')
+			.populate('doctorId', 'name specialization roomNumber')
+			.populate('hospitalId', 'name')
+			.populate('departmentId', 'name')
+			.sort({ queuePosition: 1 });
+
+		const currentlyServing = allQueues.find(q => ['CALLED', 'IN_CONSULTATION'].includes(q.status)) || null;
+		const waitingList = allQueues.filter(q => ['CHECKED_IN', 'WAITING'].includes(q.status));
+		const completedList = allQueues.filter(q => q.status === 'COMPLETED');
+		const skippedList = allQueues.filter(q => ['SKIPPED', 'NO_SHOW'].includes(q.status));
+
+		// Get active doctors for filter
+		const doctors = await Doctor.find({ active: true }).select('name specialization roomNumber hospital department').lean();
+
+		res.json({
+			success: true,
+			data: {
+				currentlyServing,
+				waitingList,
+				completedList,
+				skippedList,
+				totalToday: allQueues.length,
+				doctors
+			}
+		});
+	} catch (err) {
+		console.error('Error fetching doctor queue:', err);
+		res.status(500).json({ message: 'Error fetching doctor queue list', error: err.message });
 	}
 };

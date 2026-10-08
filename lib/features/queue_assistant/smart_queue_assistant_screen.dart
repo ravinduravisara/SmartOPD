@@ -17,15 +17,34 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<({String sender, String text})> _messages = [];
   bool _sending = false;
+  String _selectedLanguage = 'en'; // 'en', 'ta', 'si'
 
-  final List<String> _quickQueries = [
-    'What is my token?',
-    'How many patients ahead?',
-    'What is the current token?',
-    'How long do I need to wait?',
-    'When should I return?',
-    'Is the doctor delayed?'
-  ];
+  final Map<String, List<String>> _quickQueriesMap = {
+    'en': [
+      'What is my token?',
+      'How many patients ahead?',
+      'What is the current token?',
+      'How long do I need to wait?',
+      'Is the doctor delayed?',
+      'OPD Working Hours?'
+    ],
+    'ta': [
+      'என் டோக்கன் எண் என்ன?',
+      'முன்னால் எத்தனை நோயாளிகள்?',
+      'இப்போது எந்த டோக்கன்?',
+      'எவ்வளவு நேரம் காத்திருக்க வேண்டும்?',
+      'மருத்துவர் தாமதமா?',
+      'OPD நேரம் என்ன?'
+    ],
+    'si': [
+      'මගේ ටෝකන් අංකය කුමක්ද?',
+      'ඉදිරියෙන් රෝගීන් කී දෙනෙක්ද?',
+      'දැන් ක්‍රියාත්මක ටෝකනය කුමක්ද?',
+      'කොපමණ වේලාවක් බලා සිටිය යුතුද?',
+      'වෛද්‍යවරයා ප්‍රමාදද?',
+      'OPD වේලාවන් කවදාද?'
+    ]
+  };
 
   @override
   void initState() {
@@ -34,6 +53,38 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
       sender: 'assistant',
       text: 'Hello! I am your Smart Queue Assistant. Ask me anything about your current OPD token, queue position, or estimated wait time.'
     ));
+  }
+
+  void _changeLanguage(String lang) {
+    if (_selectedLanguage == lang) return;
+    setState(() {
+      _selectedLanguage = lang;
+      String greeting;
+      switch (lang) {
+        case 'ta':
+          greeting = 'வணக்கம்! நான் உங்கள் Smart Queue உதவியாளர். உங்கள் தற்போதைய OPD டோக்கன், வரிசை நிலை அல்லது காத்திருப்பு நேரம் பற்றி என்னிடம் கேளுங்கள். 😊';
+          break;
+        case 'si':
+          greeting = 'ආයුබෝවන්! මම ඔබගේ Smart Queue සහායකයා වෙමි. ඔබගේ වත්මන් OPD ටෝකනය, පෝලිමේ ස්ථානය හෝ පොරොත්තු කාලය පිළිබඳව ඕනෑම දෙයක් අසන්න. 😊';
+          break;
+        default:
+          greeting = 'Hello! I am your Smart Queue Assistant. Ask me anything about your current OPD token, queue position, or estimated wait time. 😊';
+          break;
+      }
+      _messages.add((sender: 'assistant', text: greeting));
+    });
+    _scrollToBottom();
+  }
+
+  String get _inputHint {
+    switch (_selectedLanguage) {
+      case 'ta':
+        return 'வரிசை அல்லது டோக்கன் பற்றிக் கேளுங்கள்...';
+      case 'si':
+        return 'පෝලිම හෝ ටෝකනය ගැන අසන්න...';
+      default:
+        return 'Ask about your queue...';
+    }
   }
 
   final ScrollController _scrollController = ScrollController();
@@ -52,7 +103,10 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await widget.provider.queueService.askQueueAssistant(text);
+      final reply = await widget.provider.queueService.askQueueAssistant(
+        text,
+        language: _selectedLanguage,
+      );
       setState(() {
         _messages.add((sender: 'assistant', text: reply));
       });
@@ -83,6 +137,7 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
   Widget build(BuildContext context) {
     final queue = widget.provider.activeQueueData;
     final token = queue?['tokenNumber'] as String? ?? 'N/A';
+    final currentQueries = _quickQueriesMap[_selectedLanguage] ?? _quickQueriesMap['en']!;
 
     return GlassScaffold(
       titleWidget: const Row(
@@ -104,7 +159,7 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
           children: [
             // Active Context Header
             GlassHeroSurface(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               radius: 18,
               child: Row(
@@ -134,11 +189,42 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
               ),
             ),
 
+            // Language Selector Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.language_rounded, size: 16, color: AppTheme.teal),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Language:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textMuted),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _langChip('en', 'English'),
+                          const SizedBox(width: 6),
+                          _langChip('ta', 'தமிழ்'),
+                          const SizedBox(width: 6),
+                          _langChip('si', 'සිංහල'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+
             // Messages list
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
                 itemCount: _messages.length,
                 itemBuilder: (context, index) {
                   final m = _messages[index];
@@ -201,10 +287,10 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _quickQueries.length,
+                itemCount: currentQueries.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final query = _quickQueries[index];
+                  final query = currentQueries[index];
                   return ActionChip(
                     backgroundColor: Colors.white.withValues(alpha: 0.6),
                     side: const BorderSide(color: AppTheme.glassBorder),
@@ -236,7 +322,7 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
                               controller: _controller,
                               style: const TextStyle(color: AppTheme.navy),
                               decoration: InputDecoration(
-                                hintText: 'Ask about your queue...',
+                                hintText: _inputHint,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                                 fillColor: Colors.white.withValues(alpha: 0.55),
                                 filled: true,
@@ -276,6 +362,43 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _langChip(String code, String label) {
+    final isSelected = _selectedLanguage == code;
+    return InkWell(
+      onTap: () => _changeLanguage(code),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.teal : Colors.white.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? AppTheme.teal : AppTheme.glassBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.teal.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : AppTheme.navy,
+          ),
         ),
       ),
     );

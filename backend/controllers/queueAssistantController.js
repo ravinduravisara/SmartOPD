@@ -89,7 +89,16 @@ async function getQueueContext(patientId) {
 }
 
 // System prompt for Gemini
-function buildSystemPrompt(queueContext) {
+function buildSystemPrompt(queueContext, language = 'en') {
+	let langInstruction = '';
+	if (language === 'ta') {
+		langInstruction = `CRITICAL LANGUAGE PREFERENCE: The user has explicitly selected TAMIL (தமிழ் / Tanglish). You MUST respond in Tamil (தமிழ்) or friendly Tanglish (Tamil in English alphabet). Keep it natural, warm, and helpful.`;
+	} else if (language === 'si') {
+		langInstruction = `CRITICAL LANGUAGE PREFERENCE: The user has explicitly selected SINHALA (සිංහල). You MUST respond in fluent, polite, and natural Sinhala script (සිංහල). Keep it clear, warm, and conversational.`;
+	} else {
+		langInstruction = `LANGUAGE INSTRUCTION: Respond in English, or mirror the language/script the user is asking in if they ask in Tamil or Sinhala.`;
+	}
+
 	const basePrompt = `You are "SmartOPD Assistant" — a friendly, casual, and helpful AI chatbot for a hospital OPD (Out-Patient Department) queue management app called SmartOPD.
 
 PERSONALITY & STYLE:
@@ -97,11 +106,7 @@ PERSONALITY & STYLE:
 - Keep responses short, direct, and conversational (2-3 sentences max)
 - Use 1-2 friendly emojis when appropriate
 
-CRITICAL LANGUAGE RULE:
-- If the user asks in Tanglish (Tamil in English letters like "vanakkam", "eppo varum", "late aaguma", "eppadi irukka"), respond IN TANGLISH
-- If the user asks in Tamil script (தமிழ்), respond in Tamil script
-- If the user asks in English, respond in English
-- ALWAYS mirror the language the user speaks.
+${langInstruction}
 
 SCOPE:
 - Your core knowledge is OPD queues: tokens, wait time, doctor, current queue progress
@@ -132,27 +137,37 @@ GENERAL HOSPITAL & OPD INFORMATION (User has no active token right now):
 - OPD Working Hours: Government OPD Clinics are open daily from 8:00 AM to 4:00 PM. Emergency care is available 24/7.
 - Doctor Availability: General and specialist doctors (Cardiology, OPD, Pediatrics, Orthopedics, etc.) consult patients during working hours.
 - How to Book an Appointment: Users can browse hospitals, select a doctor, and pick an available time slot on the "Hospitals / Book Appointment" page.
-- How to Get a Token: On the day of the appointment, when arriving at the hospital, users tap "Check In & Get Live Token" under My Appointments to receive their live queue token.
-- Instructions: Answer general questions (greetings, doctor availability, hospital hours, OPD process) warmly in the user's language (Tanglish/Tamil/English). If asked about their personal token, politely inform them that they don't have an active token yet and guide them to check in on their appointment day.`;
+- How to Get a Token: On the day of the appointment, when arriving at the hospital, users tap "Check In & Get Live Token" under My Appointments to receive their live queue token.`;
 }
 
-// Intelligent natural language responder for Tanglish, Tamil, and English OPD questions
-function generateSmartQueueReply(query, queueContext) {
+// Intelligent natural language responder for Tanglish, Tamil, Sinhala, and English OPD questions
+function generateSmartQueueReply(query, queueContext, language = 'en') {
 	const q = query.toLowerCase().trim();
 
-	const isTanglishOrTamil = /[a-z]* (enna|eppadi|ethana|per|varum|kaat|iruk|vanakkam|sollu|paak|paath|panna|podhu|irukkara|varuvaara|dharposedhu)|வணக்கம்|எப்போது|டோக்கன்|இருக்கு/.test(q) ||
+	const isSinhala = language === 'si' || /[\u0D80-\u0DFF]/.test(query) ||
+		q.includes('kohomada') || q.includes('token') && q.includes('mokakda') || q.includes('kiyada') || q.includes('pohim') || q.includes('wela');
+
+	const isTanglishOrTamil = language === 'ta' || /[a-z]* (enna|eppadi|ethana|per|varum|kaat|iruk|vanakkam|sollu|paak|paath|panna|podhu|irukkara|varuvaara|dharposedhu)|வணக்கம்|எப்போது|டோக்கன்|இருக்கு/.test(q) ||
 		q.includes('enna') || q.includes('ethana') || q.includes('eppadi') || q.includes('varum') || q.includes('vanakkam') || q.includes('kaattudhu') || q.includes('solli') || q.includes('badhil') || q.includes('kaattala') || q.includes('aagum') || q.includes('olunga') || q.includes('iruk') || q.includes('varu');
 
-	// 1. Doctor Availability / Schedule Query ("doctor irukkara", "is doctor available", "doctor timing")
-	if (q.includes('doctor') && (q.includes('iruk') || q.includes('available') || q.includes('varu') || q.includes('time') || q.includes('working') || q.includes('open'))) {
+	// 1. Doctor Availability / Schedule Query
+	if (q.includes('doctor') && (q.includes('iruk') || q.includes('available') || q.includes('varu') || q.includes('time') || q.includes('working') || q.includes('open') || q.includes('innawada'))) {
+		if (isSinhala) {
+			return `ඔව්! 🩺 OPD වෛද්‍යවරුන් සාමාන්‍යයෙන් උදෑසන 8:00 සිට සවස 4:00 දක්වා සේවය කරයි. Appointments පිටුවෙන් ඔබට අවශ්‍ය වෛද්‍යවරයාගේ වේලාවන් පරීක්ෂා කර වෙන්කරවා ගත හැක!`;
+		}
 		if (isTanglishOrTamil) {
-			return `Aam! 🩺 OPD Doctors s பொதுவாக morning 8:00 AM முதல் 4:00 PM வரை இருக்கிறார்கள். Neenga Appointments page-ல் சென்று specific Doctor schedule-ஐ பார்த்து Slot Book செய்யலாம்!`;
+			return `Aam! 🩺 OPD Doctors பொதுவாக morning 8:00 AM முதல் 4:00 PM வரை இருக்கிறார்கள். Neenga Appointments page-ல் சென்று specific Doctor schedule-ஐ பார்த்து Slot Book செய்யலாம்!`;
 		}
 		return `Yes! 🩺 OPD Doctors are generally available during working hours (8:00 AM - 4:00 PM). You can check individual doctor slots and book from the Appointments page.`;
 	}
 
-	// 2. Greetings ("hi", "hello", "hey", "vanakkam")
-	if (q === 'hi' || q === 'hello' || q === 'hey' || q === 'vanakkam' || q.includes('vanakkam') || q.includes('வணக்கம்')) {
+	// 2. Greetings
+	if (q === 'hi' || q === 'hello' || q === 'hey' || q === 'vanakkam' || q.includes('vanakkam') || q.includes('வணக்கம்') || q.includes('ayubowan') || q.includes('ආයුබෝවන්')) {
+		if (isSinhala) {
+			return queueContext
+				? `ආයුබෝවන්! 👋 ඔබගේ සක්‍රිය OPD ටෝකනය **${queueContext.tokenNumber}** (${queueContext.hospitalName}). ඔබට ඉදිරියෙන් රෝගීන් ${queueContext.patientsAhead} දෙනෙකු සිටිති. මම ඔබට කෙසේ උපකාර කරන්නද? 😊`
+				: `ආයුබෝවන්! 👋 මම ඔබගේ SmartOPD සහායකයා වෙමි. OPD ටෝකන්, පොරොත්තු කාලය හෝ වෛද්‍යවරුන් පිළිබඳ ඕනෑම දෙයක් අසන්න! 😊`;
+		}
 		if (isTanglishOrTamil) {
 			return queueContext
 				? `Vanakkam! 👋 Unga Live OPD Token **${queueContext.tokenNumber}** (${queueContext.hospitalName}). Ungalukku munnadi ${queueContext.patientsAhead} patients irukaanga. Naan ungalukku eppadi help pannanum?`
@@ -164,7 +179,10 @@ function generateSmartQueueReply(query, queueContext) {
 	}
 
 	// 3. OPD Working Hours / Hospital timing
-	if (q.includes('timing') || q.includes('time') || q.includes('hours') || q.includes('open') || q.includes('close')) {
+	if (q.includes('timing') || q.includes('time') || q.includes('hours') || q.includes('open') || q.includes('close') || q.includes('welawa')) {
+		if (isSinhala) {
+			return `රජයේ OPD සායන උදෑසන 8:00 සිට සවස 4:00 දක්වා විවෘතව පවතී. හදිසි ප්‍රතිකාර සේවා පැය 24 පුරාම ක්‍රියාත්මකයි! 🏥`;
+		}
 		if (isTanglishOrTamil) {
 			return `Government OPD Departments kaalai 8:00 AM to maalai 4:00 PM varai open-a irukum. Emergency services 24/7 avalaible! 🏥`;
 		}
@@ -173,11 +191,17 @@ function generateSmartQueueReply(query, queueContext) {
 
 	// If query is specifically asking about token/queue status without active token
 	if (!queueContext) {
-		if (q.includes('token') || q.includes('queue') || q.includes('wait') || q.includes('ahead')) {
+		if (q.includes('token') || q.includes('queue') || q.includes('wait') || q.includes('ahead') || q.includes('polima')) {
+			if (isSinhala) {
+				return `ඔබට දැනට සක්‍රිය check-in ටෝකනයක් නැත. රෝහලට පැමිණි පසු Appointments පිටුවෙන් "Check In" ක්ලික් කර සජීවී ටෝකනයක් ලබා ගන්න. 🎟️`;
+			}
 			if (isTanglishOrTamil) {
 				return `Ungalukku dharposedhu active check-in token edhum illai. Hospital-kku vandhudhum Appointment page-la "Check In" click panna live token tharappadum. 🎟️`;
 			}
 			return `You currently do not have an active checked-in token. Please check in from your appointments page when you arrive at the hospital. 🎟️`;
+		}
+		if (isSinhala) {
+			return `මම ඔබගේ SmartOPD සහායකයා වෙමි. වෛද්‍යවරුන්, වේලාවන් සහ පෝලිම් තොරතුරු පිළිබඳව විමසන්න! 😊`;
 		}
 		if (isTanglishOrTamil) {
 			return `Naan unga SmartOPD Assistant. Doctor slots, OPD timing, matrum live queue token patri enna kelvi irundhaalum கேளுங்கள்! 😊`;
@@ -185,16 +209,24 @@ function generateSmartQueueReply(query, queueContext) {
 		return `I am your SmartOPD Assistant. How can I help you with your hospital visit or queue status today? 😊`;
 	}
 
-	// 4. Token query ("What is my token?", "en token enna")
-	if (q.includes('token') && (q.includes('my') || q.includes('mine') || q.includes('en') || q.includes('ennoda') || q.includes('what') || q.includes('number'))) {
+	// 4. Token query
+	if (q.includes('token') && (q.includes('my') || q.includes('mine') || q.includes('en') || q.includes('ennoda') || q.includes('what') || q.includes('number') || q.includes('mage') || q.includes('mokakda'))) {
+		if (isSinhala) {
+			return `ඔබගේ සක්‍රිය ඩිජිටල් OPD ටෝකන් අංකය: **${queueContext.tokenNumber}** (${queueContext.hospitalName} - Dr. ${queueContext.doctorName}).`;
+		}
 		if (isTanglishOrTamil) {
 			return `Unga Live OPD Token number **${queueContext.tokenNumber}** (${queueContext.hospitalName} - ${queueContext.doctorName}).`;
 		}
 		return `Your active digital OPD token number is **${queueContext.tokenNumber}** at ${queueContext.hospitalName} for Dr. ${queueContext.doctorName}.`;
 	}
 
-	// 5. Current token serving ("What is current token?", "now serving", "ipoh ethana token")
-	if (q.includes('current') || q.includes('now serving') || q.includes('ipoh') || q.includes('ippo') || q.includes('podhu')) {
+	// 5. Current token serving
+	if (q.includes('current') || q.includes('now serving') || q.includes('ipoh') || q.includes('ippo') || q.includes('podhu') || q.includes('dan')) {
+		if (isSinhala) {
+			return queueContext.currentToken && queueContext.currentToken !== 'None'
+				? `වෛද්‍යවරයා මේ වන විට ටෝකන් අංක **${queueContext.currentToken}** පරීක්ෂා කරමින් සිටී. ඔබගේ ටෝකනය: **${queueContext.tokenNumber}**.`
+				: `වෛද්‍යවරයා තවමත් ටෝකන් ඇමතීම ආරම්භ කර නැත. ඔබගේ ටෝකනය **${queueContext.tokenNumber}** පොරොත්තු ලේඛනයේ ඇත.`;
+		}
 		if (isTanglishOrTamil) {
 			return queueContext.currentToken && queueContext.currentToken !== 'None'
 				? `Dharposedhu Doctor paarthukondirukkum token: **${queueContext.currentToken}**. Unga token: **${queueContext.tokenNumber}**.`
@@ -205,8 +237,13 @@ function generateSmartQueueReply(query, queueContext) {
 			: `No token is currently called yet. Your Token **${queueContext.tokenNumber}** is ready in the waiting list.`;
 	}
 
-	// 6. Patients ahead ("How many patients ahead?", "ethana per ahead", "munnadi ethana")
-	if (q.includes('ahead') || q.includes('patients') || q.includes('ethana per') || q.includes('munnadi')) {
+	// 6. Patients ahead
+	if (q.includes('ahead') || q.includes('patients') || q.includes('ethana per') || q.includes('munnadi') || q.includes('idiri') || q.includes('denek')) {
+		if (isSinhala) {
+			return queueContext.patientsAhead === 0
+				? `ඔබට ඉදිරියෙන් කිසිවෙකු නැත! (ඊළඟට ඇමතුම ඔබගේ යි 🟢)`
+				: `ඔබට ඉදිරියෙන් තවත් **රෝගීන් ${queueContext.patientsAhead} දෙනෙකු** බලා සිටිති. ඇස්තමේන්තුගත කාලය: ~${queueContext.estimatedWaitMinutes} මිනිත්තු.`;
+		}
 		if (isTanglishOrTamil) {
 			return queueContext.patientsAhead === 0
 				? `Ungalukku munnadi yaarume illai! (` + (queueContext.status === 'CALLED' ? `Unga turn vandhachu, Consultation room-kku ponga! 🟢` : `Next turn ungala thaan கூப்பிடுவாங்க 🟢`) + `)`
@@ -217,8 +254,13 @@ function generateSmartQueueReply(query, queueContext) {
 			: `There are currently **${queueContext.patientsAhead} patient(s) ahead of you** in the queue.`;
 	}
 
-	// 7. Wait time / ETA ("How long wait", "wait time", "eppadiku varum", "evvalavu neram")
-	if (q.includes('wait') || q.includes('time') || q.includes('long') || q.includes('neram') || q.includes('evvalavu')) {
+	// 7. Wait time / ETA
+	if (q.includes('wait') || q.includes('time') || q.includes('long') || q.includes('neram') || q.includes('evvalavu') || q.includes('wela') || q.includes('koytarum')) {
+		if (isSinhala) {
+			return queueContext.estimatedWaitMinutes === 0
+				? `ඔබගේ පොරොත්තු කාලය ~0 මිනිත්තු වේ! ඔබට ඉදිරියෙන් රෝගීන් නැත, සූදානම්ව සිටින්න. 🟢`
+				: `ඔබගේ ඇස්තමේන්තුගත පොරොත්තු කාලය ආසන්න වශයෙන් **~${queueContext.estimatedWaitMinutes} මිනිත්තු** වේ (${queueContext.patientsAhead} දෙනෙක් ඉදිරියෙන්).`;
+		}
 		if (isTanglishOrTamil) {
 			return queueContext.estimatedWaitMinutes === 0
 				? `Unga wait time ~0 mins! Ungalukku munnadi 0 patients, ready-a irunga. 🟢`
@@ -229,8 +271,13 @@ function generateSmartQueueReply(query, queueContext) {
 			: `Your estimated wait time is approximately **~${queueContext.estimatedWaitMinutes} minutes** (${queueContext.patientsAhead} patients ahead).`;
 	}
 
-	// 8. Delay query ("delay", "late", "doctor late")
-	if (q.includes('delay') || q.includes('late') || q.includes('slow')) {
+	// 8. Delay query
+	if (q.includes('delay') || q.includes('late') || q.includes('slow') || q.includes('pramada')) {
+		if (isSinhala) {
+			return queueContext.isDelayed
+				? `ඔව්, වෛද්‍යවරයාගේ ප්‍රතිකාර සඳහා සුළු අමතර වේලාවක් ගතවෙමින් පවතී. කරුණාකර අසල රැඳී සිටින්න. ⚠️`
+				: `නැත, OPD පෝලිම සාමාන්‍ය වේගයෙන් ඉදිරියට යයි. ප්‍රමාදයක් නැත! ✅`;
+		}
 		if (isTanglishOrTamil) {
 			return queueContext.isDelayed
 				? `Aam, Doctor dharposedhu siridhu neram extra eduthu paarthu kondirukkiraar. Porumaiyaaga irunga. ⚠️`
@@ -241,7 +288,10 @@ function generateSmartQueueReply(query, queueContext) {
 			: `No major delays detected! The OPD queue is moving normally. ✅`;
 	}
 
-	// Default intelligent response in user's language
+	// Default response
+	if (isSinhala) {
+		return `ඔබගේ සජීවී OPD තොරතුරු: ටෝකන් **${queueContext.tokenNumber}** (${queueContext.hospitalName}), ඉදිරියෙන් රෝගීන් ${queueContext.patientsAhead}, බලා සිටින කාලය: ~${queueContext.estimatedWaitMinutes} මිනි. තවත් විස්තර සඳහා විමසන්න! 😊`;
+	}
 	if (isTanglishOrTamil) {
 		return `Unga Live OPD summary: Token **${queueContext.tokenNumber}** (${queueContext.hospitalName}), ${queueContext.patientsAhead} patients ahead, Est. Wait: ~${queueContext.estimatedWaitMinutes} mins. Mele ethavadhu kelvi irundha கேளுங்கள்! 😊`;
 	}
@@ -251,7 +301,7 @@ function generateSmartQueueReply(query, queueContext) {
 
 exports.askQueueAssistant = async (req, res) => {
 	try {
-		const { query } = req.body;
+		const { query, language = 'en' } = req.body;
 		const patientId = (req.userRecord && req.userRecord._id) || (req.user && (req.user._id || req.user.id));
 
 		if (!query || typeof query !== 'string') {
@@ -261,8 +311,8 @@ exports.askQueueAssistant = async (req, res) => {
 		// Get real-time queue context from MongoDB
 		const queueContext = await getQueueContext(patientId);
 
-		// Build system prompt with live queue data for Gemini AI
-		const systemPrompt = buildSystemPrompt(queueContext);
+		// Build system prompt with live queue data and language preference for Gemini AI
+		const systemPrompt = buildSystemPrompt(queueContext, language);
 
 		let reply = '';
 		const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
@@ -291,7 +341,7 @@ exports.askQueueAssistant = async (req, res) => {
 		}
 
 		if (!reply) {
-			reply = generateSmartQueueReply(query, queueContext);
+			reply = generateSmartQueueReply(query, queueContext, language);
 		}
 
 		// Build response
