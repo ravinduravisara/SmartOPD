@@ -94,71 +94,88 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: const Icon(Icons.delete_rounded, color: Color(0xFFDC2626)),
                 ),
                 onDismissed: (_) => widget.provider.deleteNotification(notifId),
-                child: GlassSurface(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(16),
-                  radius: 20,
-                  tint: readStatus ? null : AppTheme.teal,
-                  borderColor: readStatus ? null : AppTheme.teal.withValues(alpha: 0.4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: iconInfo.color.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: iconInfo.color.withValues(alpha: 0.45)),
-                        ),
-                        child: Icon(iconInfo.icon, color: iconInfo.color, size: 20),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: readStatus ? null : () => widget.provider.markNotificationRead(notifId),
+                    child: GlassSurface(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(16),
+                      radius: 20,
+                      tint: readStatus ? null : AppTheme.teal,
+                      borderColor: readStatus ? null : AppTheme.teal.withValues(alpha: 0.4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: iconInfo.color.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: iconInfo.color.withValues(alpha: 0.45)),
+                            ),
+                            child: Icon(iconInfo.icon, color: iconInfo.color, size: 20),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: readStatus ? FontWeight.bold : FontWeight.w900,
-                                      color: AppTheme.navy,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: readStatus ? FontWeight.bold : FontWeight.w900,
+                                          color: AppTheme.navy,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (!readStatus) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        margin: const EdgeInsets.only(top: 4),
+                                        decoration: const BoxDecoration(
+                                          color: AppTheme.teal,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.check_circle_outline_rounded, size: 18, color: AppTheme.teal),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        tooltip: 'Mark as read',
+                                        onPressed: () => widget.provider.markNotificationRead(notifId),
+                                      ),
+                                    ],
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      tooltip: 'Delete',
+                                      onPressed: () => widget.provider.deleteNotification(notifId),
+                                    ),
+                                  ],
                                 ),
-                                if (!readStatus) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    margin: const EdgeInsets.only(top: 4),
-                                    decoration: const BoxDecoration(
-                                      color: AppTheme.teal,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ],
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  tooltip: 'Delete',
-                                  onPressed: () => widget.provider.deleteNotification(notifId),
+                                const SizedBox(height: 4),
+                                Text(
+                                  message,
+                                  style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, height: 1.35),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              message,
-                              style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, height: 1.35),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               );

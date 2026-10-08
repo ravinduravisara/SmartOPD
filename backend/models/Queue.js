@@ -20,7 +20,9 @@ const queueSchema = new mongoose.Schema({
 	completedAt: { type: Date, default: null },
 	estimatedWaitTime: { type: Number, default: 0 }, // in minutes
 	priority: { type: Number, default: 0 },
-	isWalkIn: { type: Boolean, default: false }
+	isWalkIn: { type: Boolean, default: false },
+	specialNeeds: { type: String, default: '' },
+	notes: { type: String, default: '' }
 }, { timestamps: true });
 
 queueSchema.index({ doctorId: 1, createdAt: 1, status: 1 });

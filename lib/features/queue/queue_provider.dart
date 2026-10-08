@@ -151,6 +151,23 @@ class QueueProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> markNotificationRead(String notificationId) async {
+    try {
+      await queueService.markNotificationRead(notificationId);
+      final idx = notifications.indexWhere((n) => (n as Map<String, dynamic>)['_id'] == notificationId);
+      if (idx != -1) {
+        final notif = notifications[idx] as Map<String, dynamic>;
+        if (notif['readStatus'] != true) {
+          notif['readStatus'] = true;
+          if (unreadNotificationsCount > 0) {
+            unreadNotificationsCount--;
+          }
+        }
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> markAllNotificationsRead() async {
     try {
       await queueService.markAllNotificationsRead();
@@ -160,6 +177,32 @@ class QueueProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<bool> updateQueue(String queueId, {String? notes, String? specialNeeds}) async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      await queueService.updateQueue(
+        queueId,
+        notes: notes,
+        specialNeeds: specialNeeds,
+      );
+      if (activeQueueData != null) {
+        if (notes != null) activeQueueData!['notes'] = notes;
+        if (specialNeeds != null) activeQueueData!['specialNeeds'] = specialNeeds;
+      }
+      isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      error = e.toString();
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> cancelQueue(String queueId) async {

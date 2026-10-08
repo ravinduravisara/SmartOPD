@@ -411,6 +411,47 @@ exports.cancelQueue = async (req, res) => {
 	}
 };
 
+// Patient / Staff Update Queue Entry (UPDATE operation)
+exports.updateQueue = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { notes, specialNeeds, priority, isWalkIn } = req.body;
+		const patientId = (req.userRecord && req.userRecord._id) || (req.user && (req.user._id || req.user.id));
+
+		const queue = await Queue.findById(id);
+		if (!queue) return res.status(404).json({ message: 'Queue record not found' });
+
+		// Verify patient owns this queue entry or is staff/admin/doctor
+		const isOwner = queue.patientId.toString() === patientId.toString();
+		const isPrivileged = req.user?.role === 'admin' || req.user?.role === 'doctor';
+		if (!isOwner && !isPrivileged) {
+			return res.status(403).json({ message: 'Not authorized to update this queue entry' });
+		}
+
+		if (notes !== undefined) queue.notes = notes;
+		if (specialNeeds !== undefined) queue.specialNeeds = specialNeeds;
+		if (priority !== undefined) queue.priority = priority;
+		if (isWalkIn !== undefined) queue.isWalkIn = isWalkIn;
+
+		await queue.save();
+
+		// Notify live updates
+		notifyPatientQueueUpdate(queue.patientId, { action: 'queue_updated', queue });
+		if (queue.doctorId) {
+			notifyDoctorQueueUpdate(queue.doctorId.toString(), { action: 'patient_updated', queueId: id });
+		}
+
+		res.json({
+			success: true,
+			message: 'Queue entry updated successfully',
+			data: queue
+		});
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ message: 'Error updating queue entry' });
+	}
+};
+
 // Nearby Hospital Discovery & Live Queue Comparison using Real GPS Location
 exports.getNearbyHospitals = async (req, res) => {
 	try {

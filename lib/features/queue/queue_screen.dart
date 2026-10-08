@@ -124,8 +124,8 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
                             _buildStatusBanner(provider),
                             const SizedBox(height: 24),
                             _buildProgressTimeline(provider),
-                            const SizedBox(height: 16),
-                            _buildCancelButton(provider),
+                            const SizedBox(height: 20),
+                            _buildQueueActionButtons(provider),
                           ],
                         ),
                       ),
@@ -253,6 +253,43 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
                 style: const TextStyle(color: AppTheme.mint, fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
+            if (queue['specialNeeds'] != null && (queue['specialNeeds'] as String).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.6)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.accessible_forward_rounded, color: Colors.amber, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Assistance: ${queue['specialNeeds']}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (queue['notes'] != null && (queue['notes'] as String).isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Note: "${queue['notes']}"',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -484,54 +521,202 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildCancelButton(QueueProvider provider) {
+  Widget _buildQueueActionButtons(QueueProvider provider) {
     final status = provider.activeQueueData?['status'] ?? '';
-    final canCancel = status == 'CHECKED_IN' || status == 'WAITING';
-    if (!canCancel) return const SizedBox.shrink();
+    final canModify = status == 'CHECKED_IN' || status == 'WAITING';
+    if (!canModify) return const SizedBox.shrink();
 
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFDC2626),
-          side: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.teal,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            icon: const Icon(Icons.edit_note_rounded),
+            label: const Text(
+              'Update Assistance & Notes',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            onPressed: () => _showUpdateQueueDialog(provider),
+          ),
         ),
-        icon: const Icon(Icons.cancel_outlined),
-        label: const Text('Cancel Queue', style: TextStyle(fontWeight: FontWeight.bold)),
-        onPressed: () async {
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Cancel Queue?'),
-              content: const Text('Are you sure you want to cancel your queue entry? This cannot be undone.'),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+              side: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            icon: const Icon(Icons.cancel_outlined),
+            label: const Text('Cancel Queue', style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Cancel Queue?'),
+                  content: const Text('Are you sure you want to cancel your queue entry? This cannot be undone.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Yes, Cancel', style: TextStyle(color: Color(0xFFDC2626))),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true && mounted) {
+                final queueId = provider.activeQueueData?['_id'] as String?;
+                if (queueId != null) {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(context);
+                  final success = await provider.cancelQueue(queueId);
+                  if (mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(success ? 'Queue cancelled successfully.' : (provider.error ?? 'Failed to cancel.')),
+                        backgroundColor: success ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                      ),
+                    );
+                    if (success) navigator.pop();
+                  }
+                }
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showUpdateQueueDialog(QueueProvider provider) async {
+    final queue = provider.activeQueueData;
+    if (queue == null) return;
+    final queueId = queue['_id'] as String?;
+    if (queueId == null) return;
+
+    final initialNotes = queue['notes'] as String? ?? '';
+    final initialSpecialNeeds = queue['specialNeeds'] as String? ?? 'None';
+
+    final notesController = TextEditingController(text: initialNotes);
+    String selectedNeeds = initialSpecialNeeds.isEmpty ? 'None' : initialSpecialNeeds;
+
+    final options = ['None', 'Wheelchair Assistance', 'Elderly Escort', 'Urgent Attention', 'Sign Language'];
+    if (!options.contains(selectedNeeds)) {
+      options.add(selectedNeeds);
+    }
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Row(
+                children: [
+                  Icon(Icons.edit_note_rounded, color: AppTheme.teal),
+                  SizedBox(width: 8),
+                  Text('Update Visit Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Special Assistance / Needs',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.navy),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.glassBorder),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: selectedNeeds,
+                          items: options.map((opt) {
+                            return DropdownMenuItem<String>(
+                              value: opt,
+                              child: Text(opt, style: const TextStyle(fontSize: 14)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedNeeds = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Visit Notes / Patient Status',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.navy),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Waiting in Lobby 2, experiencing headache...',
+                        hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.all(12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
                 TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Yes, Cancel', style: TextStyle(color: Color(0xFFDC2626))),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.teal,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Save Update'),
                 ),
               ],
-            ),
-          );
-          if (confirm == true && mounted) {
-            final queueId = provider.activeQueueData?['_id'] as String?;
-            if (queueId != null) {
-              final success = await provider.cancelQueue(queueId);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Queue cancelled successfully.' : (provider.error ?? 'Failed to cancel.')),
-                    backgroundColor: success ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                  ),
-                );
-                if (success) Navigator.of(context).pop();
-              }
-            }
-          }
-        },
-      ),
+            );
+          },
+        );
+      },
     );
+
+    if (saved == true && mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      final success = await provider.updateQueue(
+        queueId,
+        notes: notesController.text.trim(),
+        specialNeeds: selectedNeeds == 'None' ? '' : selectedNeeds,
+      );
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Queue details updated successfully!' : (provider.error ?? 'Failed to update.')),
+            backgroundColor: success ? const Color(0xFF059669) : const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 }
