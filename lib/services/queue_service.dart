@@ -27,9 +27,10 @@ class QueueService {
     return response['data'] as List<dynamic>? ?? [];
   }
 
-  Future<String> askQueueAssistant(String query) async {
+  Future<String> askQueueAssistant(String query, {String language = 'en'}) async {
     final response = await apiService.request('POST', '/queues/assistant', body: {
       'query': query,
+      'language': language,
     });
     return response['reply'] as String? ?? 'No response received.';
   }
