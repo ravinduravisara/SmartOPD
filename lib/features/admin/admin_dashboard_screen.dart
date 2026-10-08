@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
-import '../../models/user.dart';
-import '../../widgets/error_widget.dart';
 import '../../widgets/glass.dart';
-import '../../widgets/loading.dart';
 import '../auth/providers/auth_provider.dart';
 import 'catalog/departments_tab.dart';
 import 'catalog/doctors_tab.dart';
 import 'catalog/hospitals_tab.dart';
 import 'data/catalog_service.dart';
+import 'data/dashboard_service.dart';
+import 'audit_activity_screen.dart';
+import 'user_management_screen.dart';
+
+class _ManagementAction {
+  const _ManagementAction(this.title, this.subtitle, this.icon, this.onTap);
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+}
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({required this.auth, super.key});
@@ -17,6 +26,139 @@ class AdminDashboardScreen extends StatefulWidget {
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _HourlyBarChart extends StatelessWidget {
+  const _HourlyBarChart({required this.points});
+  final List<DashboardPoint> points;
+
+  @override
+  Widget build(BuildContext context) {
+    if (points.isEmpty) {
+      return const Center(
+        child: Text(
+          'No appointments scheduled today',
+          style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+        ),
+      );
+    }
+    final max = points.map((point) => point.count).fold<int>(
+      0,
+      (current, value) => value > current ? value : current,
+    );
+    return Semantics(
+      label: 'Hourly appointment volume for today',
+      child: CustomPaint(
+        painter: _BarChartPainter(points: points, maxValue: max),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+class _BarChartPainter extends CustomPainter {
+  const _BarChartPainter({required this.points, required this.maxValue});
+  final List<DashboardPoint> points;
+  final int maxValue;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final chartHeight = size.height - 24;
+    final slotWidth = size.width / points.length;
+    final barWidth = (slotWidth * 0.42).clamp(14.0, 32.0);
+    final max = maxValue == 0 ? 1 : maxValue;
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    for (var index = 0; index < points.length; index++) {
+      final point = points[index];
+      final height = chartHeight * point.count / max;
+      final x = slotWidth * index + (slotWidth - barWidth) / 2;
+      final y = chartHeight - height;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, barWidth, height),
+        const Radius.circular(8),
+      );
+      final paint = Paint()
+        ..shader = const LinearGradient(
+          colors: [AppTheme.teal, AppTheme.mint],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(rect.outerRect);
+      canvas.drawRRect(rect, paint);
+      textPainter.text = TextSpan(
+        text: '${point.hour}:00',
+        style: const TextStyle(color: AppTheme.textMuted, fontSize: 9),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(x + (barWidth - textPainter.width) / 2, chartHeight + 8),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BarChartPainter oldDelegate) =>
+      oldDelegate.points != points || oldDelegate.maxValue != maxValue;
+}
+
+class _DonutChart extends StatelessWidget {
+  const _DonutChart({required this.values, required this.colors});
+  final List<int> values;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _DonutChartPainter(values: values, colors: colors),
+    child: const SizedBox.expand(),
+  );
+}
+
+class _DonutChartPainter extends CustomPainter {
+  const _DonutChartPainter({required this.values, required this.colors});
+  final List<int> values;
+  final List<Color> colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<int>(0, (sum, value) => sum + value);
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide / 2) - 8;
+    final stroke = radius * 0.28;
+    final bounds = Rect.fromCircle(center: center, radius: radius - stroke / 2);
+    if (total == 0) {
+      canvas.drawArc(
+        bounds,
+        0,
+        2 * 3.141592653589793,
+        false,
+        Paint()
+          ..color = AppTheme.glassBorder
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke,
+      );
+      return;
+    }
+    var start = -3.141592653589793 / 2;
+    for (var index = 0; index < values.length; index++) {
+      final sweep = 2 * 3.141592653589793 * values[index] / total;
+      canvas.drawArc(
+        bounds,
+        start,
+        sweep,
+        false,
+        Paint()
+          ..color = colors[index]
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = stroke,
+      );
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) =>
+      oldDelegate.values != values;
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
@@ -27,104 +169,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final AdminCatalogService _catalog = AdminCatalogService(
     widget.auth.service.api,
   );
+  late final AdminDashboardService _dashboard = AdminDashboardService(
+    widget.auth.service.api,
+  );
+  late Future<AdminDashboardMetrics> _metrics;
 
   /// Status hues that have to stay apart from each other and from the teal.
   static const _flow = Color(0xFF438AF0);
   static const _good = Color(0xFF10AD7C);
   static const _bad = Color(0xFFEF6D83);
 
-  List<User> _admins = [];
-  bool _loading = true;
-  bool _creating = false;
-  bool _saving = false;
-  bool _obscure = true;
-  String? _error;
-  String? _formError;
-  final _form = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  final _confirm = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _email.dispose();
-    _password.dispose();
-    _confirm.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final data = await widget.auth.service.api.request(
-        'GET',
-        '/admin/dashboard',
-      );
-      if (!mounted) return;
-      setState(
-        () => _admins = (data['admins'] as List)
-            .map((item) => User.fromJson(item as Map<String, dynamic>))
-            .toList(),
-      );
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _create() async {
-    if (!_form.currentState!.validate()) return;
-    setState(() {
-      _saving = true;
-      _formError = null;
-    });
-    try {
-      await widget.auth.service.api.request(
-        'POST',
-        '/admin/admins',
-        body: {
-          'name': _name.text.trim(),
-          'email': _email.text.trim(),
-          'password': _password.text,
-        },
-      );
-      if (!mounted) return;
-      _clearForm();
-      setState(() => _creating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Admin created. They can now use the same login screen.',
-          ),
-        ),
-      );
-      await _load();
-    } catch (error) {
-      if (mounted) setState(() => _formError = error.toString());
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  void _clearForm() {
-    _name.clear();
-    _email.clear();
-    _password.clear();
-    _confirm.clear();
-    _formError = null;
-    _obscure = true;
+    _metrics = _dashboard.metrics();
   }
 
   @override
@@ -173,7 +232,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             PopupMenuItem(
               value: 'logout',
-              enabled: !_saving && !widget.auth.loading,
+              enabled: !widget.auth.loading,
               child: const Text('Log out'),
             ),
           ],
@@ -204,32 +263,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         const SizedBox(width: 8),
       ],
       bottomNavigationBar: _navigation(),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        // Keeps the spinner clear of the translucent app bar.
-        edgeOffset: glassTopInset(context),
-        color: AppTheme.teal,
-        backgroundColor: Colors.white.withValues(alpha: 0.9),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            18,
-            18 + glassTopInset(context),
-            18,
-            110,
-          ),
-          children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _tabBody(),
-                ),
+      body: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          18,
+          18 + glassTopInset(context),
+          18,
+          110,
+        ),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _tabBody(),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -240,8 +292,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _opened = <int>{};
 
   List<Widget> _tabBody() => [
-    if (_tab == 0) ..._overview(),
-    if (_tab == 4) ..._administrators(),
+    if (_tab == 0)
+      FutureBuilder<AdminDashboardMetrics>(
+        future: _metrics,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.only(top: 80),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasError) {
+            return _dashboardError(snapshot.error);
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _overview(snapshot.data!),
+          );
+        },
+      ),
+    if (_tab == 4) ...[
+      UserManagementScreen(auth: widget.auth),
+    ],
+    if (_tab == 5) ...[
+      AuditActivityScreen(auth: widget.auth),
+    ],
     if (_opened.contains(1))
       Offstage(
         offstage: _tab != 1,
@@ -302,7 +377,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _tab,
-          onDestinationSelected: _saving
+          onDestinationSelected: widget.auth.loading
               ? null
               : (index) => setState(() {
                   _tab = index;
@@ -330,6 +405,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               icon: Icon(Icons.settings_outlined),
               label: 'More',
             ),
+            NavigationDestination(
+              icon: Icon(Icons.fact_check_outlined),
+              label: 'Audit',
+            ),
           ],
         ),
       ),
@@ -348,13 +427,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     child: Icon(icon, color: color, size: size * 0.52),
   );
 
-  List<Widget> _overview() => [
-    const GlassHeroSurface(
+  Widget _dashboardError(Object? error) => GlassSurface(
+    child: Column(
+      children: [
+        const Icon(Icons.cloud_off_rounded, color: _bad, size: 34),
+        const SizedBox(height: 10),
+        const Text(
+          'Dashboard data could not be loaded',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          error.toString().replaceFirst('Exception: ', ''),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _metrics = _dashboard.metrics()),
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Retry'),
+        ),
+      ],
+    ),
+  );
+
+  List<Widget> _overview(AdminDashboardMetrics metrics) => [
+    GlassHeroSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hello, Administrator',
+            'Good ${DateTime.now().hour < 12 ? 'morning' : DateTime.now().hour < 17 ? 'afternoon' : 'evening'}, Administrator',
             style: TextStyle(
               color: Colors.white,
               fontSize: 21,
@@ -370,9 +474,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
     ),
+    const SizedBox(height: 12),
+    _systemStatus(metrics),
+    const SizedBox(height: 18),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('Overview', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          'Today',
+          style: const TextStyle(
+            color: AppTheme.teal,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+    const SizedBox(height: 10),
     const SizedBox(height: 18),
     const Text(
-      'DASHBOARD PREVIEW ? SAMPLE DATA',
+      'LIVE OPERATIONS OVERVIEW',
       style: TextStyle(
         fontSize: 10,
         color: AppTheme.textMuted,
@@ -385,8 +507,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         Expanded(
           child: _metric(
-            '342',
-            "Today's patients",
+            '${metrics.total('appointmentsToday')}',
+            'Appointments today',
             _flow,
             Icons.groups_outlined,
           ),
@@ -394,7 +516,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: _metric(
-            '67',
+            '${metrics.total('waiting')}',
             'Waiting',
             AppTheme.navy,
             Icons.hourglass_bottom_rounded,
@@ -407,7 +529,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         Expanded(
           child: _metric(
-            '245',
+            '${metrics.total('completed')}',
             'Completed',
             _good,
             Icons.check_circle_outline_rounded,
@@ -415,11 +537,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _metric('18', 'No-shows', _bad, Icons.event_busy_outlined),
+          child: _metric(
+            '${metrics.total('noShows')}',
+            'No-shows',
+            _bad,
+            Icons.event_busy_outlined,
+          ),
         ),
       ],
     ),
     const SizedBox(height: 16),
+    Text('Management', style: Theme.of(context).textTheme.titleMedium),
+    const SizedBox(height: 10),
+    _managementGrid(metrics),
+    const SizedBox(height: 16),
+    _recentActivity(metrics),
+    const SizedBox(height: 16),
+    Text('Analytics', style: Theme.of(context).textTheme.titleMedium),
+    const SizedBox(height: 10),
     GlassSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,78 +565,329 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Hourly arrivals & consultations',
+            'Scheduled appointments by hour',
             style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
           ),
           const SizedBox(height: 20),
-          Semantics(
-            label:
-                'Sample hourly patient flow: 8 AM 18, 9 AM 27, 10 AM 43, 11 AM 34, noon 50, 1 PM 59.',
-            child: SizedBox(
-              height: 155,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 0; i < 6; i++)
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Container(
-                            width: 26,
-                            height: [38.0, 57.0, 90.0, 71.0, 104.0, 123.0][i],
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  AppTheme.teal.withValues(alpha: 0.85),
-                                  AppTheme.mint.withValues(alpha: 0.55),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: AppTheme.glassBorder),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            [
-                              '8:00',
-                              '9:00',
-                              '10:00',
-                              '11:00',
-                              '12:00',
-                              '13:00',
-                            ][i],
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: AppTheme.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          SizedBox(
+            height: 175,
+            child: _HourlyBarChart(points: metrics.hourlyAppointments),
           ),
         ],
       ),
+    ),
+    const SizedBox(height: 16),
+    Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _chartCard(
+            title: 'User distribution',
+            subtitle: '${metrics.total('patients') + metrics.total('doctors') + metrics.total('administrators')} registered accounts',
+            chart: _DonutChart(
+              values: [
+                metrics.usersByRole['patient'] ?? 0,
+                metrics.usersByRole['doctor'] ?? 0,
+                metrics.usersByRole['admin'] ?? 0,
+              ],
+              colors: const [_flow, _good, _bad],
+            ),
+            legend: _legend([
+              ('Patients', metrics.usersByRole['patient'] ?? 0, _flow),
+              ('Doctors', metrics.usersByRole['doctor'] ?? 0, _good),
+              ('Admins', metrics.usersByRole['admin'] ?? 0, _bad),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _chartCard(
+            title: 'Today’s appointments',
+            subtitle: '${metrics.total('appointmentsToday')} scheduled today',
+            chart: _DonutChart(
+              values: [
+                metrics.appointmentsByStatus['booked'] ?? 0,
+                metrics.appointmentsByStatus['completed'] ?? 0,
+                metrics.appointmentsByStatus['cancelled'] ?? 0,
+              ],
+              colors: const [_flow, _good, _bad],
+            ),
+            legend: _legend([
+              ('Booked', metrics.appointmentsByStatus['booked'] ?? 0, _flow),
+              ('Completed', metrics.appointmentsByStatus['completed'] ?? 0, _good),
+              ('Cancelled', metrics.appointmentsByStatus['cancelled'] ?? 0, _bad),
+            ]),
+          ),
+        ),
+      ],
     ),
     const SizedBox(height: 16),
     GlassSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Quick Status', style: Theme.of(context).textTheme.titleMedium),
+          Text('Quick status', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
-          _status('Active Queue Monitor', 'Normal (18m wait)', _good),
+          _status(
+            'Active queue',
+            '${metrics.total('waiting')} patients waiting',
+            _good,
+          ),
           const Divider(height: 24, color: AppTheme.glassBorder, thickness: 1),
-          _status('On-Duty Doctors', '31 of 42 available', AppTheme.navy),
+          _status(
+            'Clinical network',
+            '${metrics.total('doctors')} doctors · ${metrics.total('hospitals')} hospitals',
+            AppTheme.navy,
+          ),
+          const Divider(height: 24, color: AppTheme.glassBorder, thickness: 1),
+          _status(
+            'Last updated',
+            _updatedLabel(metrics.generatedAt),
+            AppTheme.teal,
+          ),
         ],
       ),
     ),
   ];
+
+  Widget _systemStatus(AdminDashboardMetrics metrics) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: AppTheme.navy,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: AppTheme.navy.withValues(alpha: 0.16),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'SmartOPD system is running normally',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: Color(0xFF5FE0B1),
+            shape: BoxShape.circle,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _managementGrid(AdminDashboardMetrics metrics) {
+    final actions = [
+      _ManagementAction(
+        'Hospitals',
+        '${metrics.total('hospitals')} registered',
+        Icons.local_hospital_outlined,
+        () => setState(() => _tab = 1),
+      ),
+      _ManagementAction(
+        'Users',
+        '${metrics.total('patients')} patients',
+        Icons.people_outline_rounded,
+        () => setState(() => _tab = 4),
+      ),
+      _ManagementAction(
+        'Schedules',
+        '${metrics.total('doctors')} doctors',
+        Icons.calendar_month_outlined,
+        () => setState(() => _tab = 3),
+      ),
+      _ManagementAction(
+        'Departments',
+        '${metrics.total('departments')} departments',
+        Icons.account_tree_outlined,
+        () => setState(() => _tab = 2),
+      ),
+      _ManagementAction(
+        'Reports',
+        'View analytics below',
+        Icons.bar_chart_rounded,
+        () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Live reports are shown below.')),
+        ),
+      ),
+      _ManagementAction(
+        'Administrators',
+        '${metrics.total('administrators')} accounts',
+        Icons.admin_panel_settings_outlined,
+        () => setState(() => _tab = 4),
+      ),
+    ];
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: actions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.1,
+      ),
+      itemBuilder: (_, index) => _managementCard(actions[index]),
+    );
+  }
+
+  Widget _managementCard(_ManagementAction action) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: action.onTap,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.glassBorder),
+        ),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _iconChip(action.icon, AppTheme.teal, size: 34),
+            const SizedBox(height: 8),
+            Text(
+              action.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              action.subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 9),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _recentActivity(AdminDashboardMetrics metrics) => GlassSurface(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Recent activity', style: Theme.of(context).textTheme.titleSmall),
+            const Text(
+              'Live',
+              style: TextStyle(
+                color: AppTheme.teal,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _activityRow(
+          Icons.calendar_today_outlined,
+          '${metrics.total('appointmentsToday')} appointments scheduled today',
+        ),
+        _activityRow(
+          Icons.people_outline_rounded,
+          '${metrics.total('waiting')} patients currently in the queue',
+        ),
+        _activityRow(
+          Icons.medical_services_outlined,
+          '${metrics.total('doctors')} active doctors in the catalog',
+        ),
+      ],
+    ),
+  );
+
+  Widget _activityRow(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Row(
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: AppTheme.mint.withValues(alpha: 0.35),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 13, color: AppTheme.teal),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 11, color: AppTheme.navy),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _chartCard({
+    required String title,
+    required String subtitle,
+    required Widget chart,
+    required Widget legend,
+  }) => GlassSurface(
+    padding: const EdgeInsets.all(14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 3),
+        Text(subtitle, style: const TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+        const SizedBox(height: 10),
+        SizedBox(height: 108, child: chart),
+        const SizedBox(height: 8),
+        legend,
+      ],
+    ),
+  );
+
+  Widget _legend(List<(String, int, Color)> entries) => Column(
+    children: entries
+        .map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(color: entry.$3, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(entry.$1, style: const TextStyle(fontSize: 10, color: AppTheme.textMuted)),
+                ),
+                Text('${entry.$2}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        )
+        .toList(),
+  );
+
+  String _updatedLabel(DateTime? value) {
+    if (value == null) return 'Not available';
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')} today';
+  }
 
   Widget _metric(String value, String label, Color color, IconData icon) =>
       GlassSurface(
@@ -560,200 +946,4 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     ],
   );
 
-  List<Widget> _administrators() => [
-    Text('Administrators', style: Theme.of(context).textTheme.headlineSmall),
-    const SizedBox(height: 8),
-    Text(
-      'Manage access to the SmartOPD admin portal.',
-      style: Theme.of(context).textTheme.bodyMedium,
-    ),
-    const SizedBox(height: 20),
-    FilledButton.icon(
-      onPressed: _creating ? null : () => setState(() => _creating = true),
-      icon: const Icon(Icons.person_add_alt_1),
-      label: const Padding(
-        padding: EdgeInsets.all(14),
-        child: Text('Create new admin'),
-      ),
-    ),
-    if (_creating) ...[const SizedBox(height: 20), _createForm()],
-    const SizedBox(height: 20),
-    if (_loading)
-      const LoadingView(padding: 24)
-    else if (_error != null)
-      ErrorView(message: _error!, onRetry: _load)
-    else ...[
-      Text(
-        '${_admins.length} administrators',
-        style: const TextStyle(
-          color: AppTheme.textMuted,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      const SizedBox(height: 12),
-      for (final admin in _admins)
-        GlassSurface(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: _iconChip(Icons.shield_outlined, AppTheme.teal, size: 42),
-            title: Text(
-              admin.name,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            subtitle: Text(
-              admin.email,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            trailing: admin.id == widget.auth.user!.id
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.teal.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: AppTheme.teal.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: const Text(
-                      'You',
-                      style: TextStyle(
-                        color: AppTheme.teal,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-        ),
-    ],
-  ];
-
-  Widget _createForm() => GlassSurface(
-    padding: const EdgeInsets.all(20),
-    child: Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'New administrator',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create an account for an authorized team member. Share their password privately.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _name,
-            enabled: !_saving,
-            maxLength: 100,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Full name',
-              prefixIcon: Icon(Icons.person_outline),
-            ),
-            validator: (value) =>
-                value == null || value.trim().isEmpty ? 'Enter a name' : null,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _email,
-            enabled: !_saving,
-            keyboardType: TextInputType.emailAddress,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: 'Email address',
-              prefixIcon: Icon(Icons.mail_outline),
-            ),
-            validator: (value) =>
-                value == null ||
-                    value.trim().length > 254 ||
-                    !RegExp(
-                      r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                    ).hasMatch(value.trim())
-                ? 'Enter a valid email address'
-                : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _password,
-            enabled: !_saving,
-            obscureText: _obscure,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              helperText:
-                  '8–128 characters: uppercase, lowercase, number and symbol',
-              helperMaxLines: 3,
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                tooltip: _obscure ? 'Show password' : 'Hide password',
-                onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(
-                  _obscure
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                ),
-              ),
-            ),
-            validator: (value) =>
-                value == null ||
-                    value.length < 8 ||
-                    value.length > 128 ||
-                    !RegExp(r'[A-Z]').hasMatch(value) ||
-                    !RegExp(r'[a-z]').hasMatch(value) ||
-                    !RegExp(r'\d').hasMatch(value) ||
-                    !RegExp(r'[^A-Za-z0-9]').hasMatch(value)
-                ? 'Use the password requirements above'
-                : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _confirm,
-            enabled: !_saving,
-            obscureText: _obscure,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: const InputDecoration(
-              labelText: 'Confirm password',
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
-            validator: (value) =>
-                value != _password.text ? 'Passwords do not match' : null,
-          ),
-          if (_formError != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                _formError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _saving ? null : _create,
-            child: Text(_saving ? 'Creating admin…' : 'Create admin'),
-          ),
-          TextButton(
-            onPressed: _saving
-                ? null
-                : () {
-                    _clearForm();
-                    setState(() => _creating = false);
-                  },
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    ),
-  );
 }

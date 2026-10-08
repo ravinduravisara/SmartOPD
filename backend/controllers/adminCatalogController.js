@@ -2,6 +2,8 @@ const City = require('../models/City');
 const Hospital = require('../models/Hospital');
 const Department = require('../models/Department');
 const Doctor = require('../models/Doctor');
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const Appointment = require('../models/Appointment');
 const Queue = require('../models/Queue');
 const {
@@ -293,6 +295,8 @@ async function checkPlacement(payload) {
 }
 
 async function createDoctor(req, res, next) {
+	let doctor;
+	let user;
 	try {
 		const payload = merge({}, req.body, DOCTOR_FIELDS);
 		const message = validateDoctor(payload);
@@ -300,10 +304,31 @@ async function createDoctor(req, res, next) {
 		const placement = await checkPlacement(payload);
 		if (placement) return res.status(placement.status).json({ message: placement.message });
 		if (payload.availability !== undefined) payload.availability = normalizeAvailability(payload.availability);
-		const doctor = await Doctor.create(payload);
+		if (typeof req.body.accountEmail !== 'string' || !req.body.accountEmail.trim()) {
+			return res.status(400).json({ message: 'Login email is required when adding a doctor' });
+		}
+		if (typeof req.body.accountPassword !== 'string' || req.body.accountPassword.length < 8) {
+			return res.status(400).json({ message: 'Login password must be at least 8 characters' });
+		}
+		doctor = await Doctor.create(payload);
+		user = await User.create({
+			name: payload.name,
+			email: req.body.accountEmail.trim().toLowerCase(),
+			password: await bcrypt.hash(req.body.accountPassword, 12),
+			role: 'doctor',
+			isEmailVerified: true,
+			doctorProfile: doctor._id
+		});
+		doctor.user = user._id;
+		await doctor.save();
 		await doctor.populate([{ path: 'hospital', select: 'name city' }, { path: 'department', select: 'name' }]);
 		res.status(201).json({ doctor: doctorSummary(doctor) });
-	} catch (error) { next(error); }
+	} catch (error) {
+		if (user?._id) await User.deleteOne({ _id: user._id }).catch(() => {});
+		if (doctor?._id) await Doctor.deleteOne({ _id: doctor._id }).catch(() => {});
+		if (error.code === 11000) return res.status(409).json({ message: 'An account with that email already exists' });
+		next(error);
+	}
 }
 
 async function updateDoctor(req, res, next) {
@@ -319,6 +344,12 @@ async function updateDoctor(req, res, next) {
 		payload.availability = normalizeAvailability(payload.availability);
 		Object.assign(doctor, payload);
 		await doctor.save();
+		if (doctor.user && (req.body.accountEmail !== undefined || req.body.accountPassword !== undefined)) {
+			const userUpdates = { name: doctor.name };
+			if (req.body.accountEmail !== undefined) userUpdates.email = req.body.accountEmail.trim().toLowerCase();
+			if (req.body.accountPassword) userUpdates.password = await bcrypt.hash(req.body.accountPassword, 12);
+			await User.findByIdAndUpdate(doctor.user, userUpdates, { runValidators: true });
+		}
 		await doctor.populate([{ path: 'hospital', select: 'name city' }, { path: 'department', select: 'name' }]);
 		res.json({ doctor: doctorSummary(doctor) });
 	} catch (error) { next(error); }

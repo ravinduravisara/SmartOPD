@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
 	profilePicture: { type: String, maxlength: 4500000 },
 	password: { type: String, required: true, select: false },
 	role: { type: String, enum: ['patient', 'doctor', 'admin'], default: 'patient' },
+	doctorProfile: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
 	isEmailVerified: { type: Boolean, default: false },
 	tokenVersion: { type: Number, default: 0 },
 	dateOfBirth: Date,
