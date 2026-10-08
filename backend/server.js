@@ -53,6 +53,20 @@ if (require.main === module) {
 			const server = http.createServer(app);
 			initSocket(server);
 			startReminderScheduler();
+			server.once('error', (error) => {
+				if (error.code === 'EADDRINUSE') {
+					console.error(
+						`SmartOPD API is already running on port ${port}. ` +
+						'Stop the existing backend before starting another one.'
+					);
+					server.close();
+					process.exit(0);
+					return;
+				}
+				console.error('SmartOPD API failed to start:', error.message);
+				server.close();
+				process.exit(1);
+			});
 			server.listen(port, () => console.log(`SmartOPD API listening on port ${port}`));
 		})
 		.catch((error) => {
@@ -62,4 +76,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-
