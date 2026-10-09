@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../services/queue_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/notification_service.dart';
@@ -25,6 +26,19 @@ class QueueProvider extends ChangeNotifier {
 
   Timer? _pollingTimer;
   String? _currentPatientId;
+
+  bool _notificationPending = false;
+
+  void _safeNotify() {
+    if (_notificationPending) return;
+    _notificationPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notificationPending = false;
+      if (hasListeners) {
+        notifyListeners();
+      }
+    });
+  }
 
   void startLiveTracking({String? patientId}) {
     fetchActiveQueue();
@@ -81,7 +95,7 @@ class QueueProvider extends ChangeNotifier {
     if (!silent) {
       isLoading = true;
       error = null;
-      notifyListeners();
+      _safeNotify();
     }
 
     try {
@@ -91,10 +105,14 @@ class QueueProvider extends ChangeNotifier {
         activeMetrics = res['metrics'] as Map<String, dynamic>?;
 
         // If we have a patient ID and socket isn't connected, connect it
-        final pId = activeQueueData?['patientId'] as String?;
-        if (pId != null && _currentPatientId == null) {
-          _currentPatientId = pId;
-          _connectSocket(pId);
+        final pId = activeQueueData?['patientId']?.toString();
+        if (pId != null) {
+          if (_currentPatientId == null) {
+            _currentPatientId = pId;
+            _connectSocket(pId);
+          } else {
+            _socketService.updatePatientId(pId);
+          }
         }
       } else {
         activeQueueData = null;
@@ -105,9 +123,9 @@ class QueueProvider extends ChangeNotifier {
     } finally {
       if (!silent) {
         isLoading = false;
-        notifyListeners();
+        _safeNotify();
       } else {
-        notifyListeners();
+        _safeNotify();
       }
     }
   }
@@ -115,14 +133,14 @@ class QueueProvider extends ChangeNotifier {
   Future<bool> checkIn(String appointmentId) async {
     isLoading = true;
     error = null;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final res = await queueService.checkIn(appointmentId);
       activeQueueData = res['queue'] as Map<String, dynamic>?;
       activeMetrics = res['metrics'] as Map<String, dynamic>?;
       isLoading = false;
-      notifyListeners();
+      _safeNotify();
 
       // Show local notification for successful check-in
       final token = activeQueueData?['tokenNumber'] as String? ?? '';
@@ -137,7 +155,7 @@ class QueueProvider extends ChangeNotifier {
     } catch (e) {
       error = e.toString();
       isLoading = false;
-      notifyListeners();
+      _safeNotify();
       return false;
     }
   }
@@ -147,7 +165,7 @@ class QueueProvider extends ChangeNotifier {
       final res = await queueService.getNotifications();
       notifications = res['notifications'] as List<dynamic>? ?? [];
       unreadNotificationsCount = res['unreadCount'] as int? ?? 0;
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
@@ -175,7 +193,7 @@ class QueueProvider extends ChangeNotifier {
       for (var n in notifications) {
         if (n is Map<String, dynamic>) n['readStatus'] = true;
       }
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
@@ -210,11 +228,11 @@ class QueueProvider extends ChangeNotifier {
       await queueService.cancelQueue(queueId);
       activeQueueData = null;
       activeMetrics = null;
-      notifyListeners();
+      _safeNotify();
       return true;
     } catch (e) {
       error = e.toString();
-      notifyListeners();
+      _safeNotify();
       return false;
     }
   }
@@ -223,7 +241,7 @@ class QueueProvider extends ChangeNotifier {
     try {
       await queueService.deleteNotification(notificationId);
       notifications.removeWhere((n) => (n as Map<String, dynamic>)['_id'] == notificationId);
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
@@ -232,21 +250,21 @@ class QueueProvider extends ChangeNotifier {
       await queueService.clearAllNotifications();
       notifications.clear();
       unreadNotificationsCount = 0;
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
   Future<void> fetchNearbyHospitals() async {
     try {
       nearbyHospitals = await queueService.getNearbyHospitals();
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
   Future<void> fetchHistory() async {
     try {
       queueHistory = await queueService.getQueueHistory();
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 

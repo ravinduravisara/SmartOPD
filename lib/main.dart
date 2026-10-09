@@ -472,7 +472,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     queueProvider = QueueProvider(QueueService(widget.auth.service.api));
-    queueProvider.startLiveTracking();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) queueProvider.startLiveTracking();
+    });
     dependents = widget.auth.service.getDependents();
     upcomingAppointments = widget.auth.service.getAppointments(
       scope: 'upcoming',
