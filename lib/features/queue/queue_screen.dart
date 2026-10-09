@@ -28,7 +28,9 @@ class _QueueScreenState extends State<QueueScreen> with SingleTickerProviderStat
       parent: _animController,
       curve: Curves.elasticOut,
     );
-    widget.provider.startLiveTracking();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.provider.startLiveTracking();
+    });
     _animController.forward();
   }
 
