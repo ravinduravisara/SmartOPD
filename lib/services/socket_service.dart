@@ -15,6 +15,7 @@ class SocketService {
   String? _patientId;
   VoidCallback? _onQueueUpdated;
   void Function(Map<String, dynamic>)? _onNotification;
+  bool _isSocketIoConnected = false;
 
   static String get _wsBaseUrl {
     if (kIsWeb) return 'ws://127.0.0.1:3000';
@@ -30,17 +31,30 @@ class SocketService {
     _patientId = patientId;
     _onQueueUpdated = onQueueUpdated;
     _onNotification = onNotification;
+    _disposed = false;
     _doConnect();
+  }
+
+  /// Update active patient ID and join the room if already connected.
+  void updatePatientId(String patientId) {
+    _patientId = patientId;
+    if (_isSocketIoConnected) {
+      _sendEvent('join_queue', {'patientId': patientId});
+    }
   }
 
   void _doConnect() {
     if (_disposed) return;
 
+    _reconnectTimer?.cancel();
+    _subscription?.cancel();
     try {
-      // Socket.IO uses a specific transport path; for simplicity we use
-      // the polling-based fallback approach since the web_socket_channel
-      // package doesn't speak the Socket.IO protocol natively.
-      // Instead, we connect via the EIO websocket transport.
+      _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
+    _isSocketIoConnected = false;
+
+    try {
       final uri = Uri.parse(
         '$_wsBaseUrl/socket.io/?EIO=4&transport=websocket',
       );
@@ -51,10 +65,12 @@ class SocketService {
         _handleMessage,
         onError: (error) {
           debugPrint('Socket error: $error');
+          _isSocketIoConnected = false;
           _scheduleReconnect();
         },
         onDone: () {
           debugPrint('Socket disconnected');
+          _isSocketIoConnected = false;
           _scheduleReconnect();
         },
       );
@@ -69,16 +85,22 @@ class SocketService {
   void _handleMessage(dynamic raw) {
     final message = raw.toString();
 
-    // Socket.IO protocol: '0' = connect, '2' = ping, '3' = pong
-    // '42' = event message
+    // Engine.IO protocol: '0' = open, '2' = ping, '3' = pong
     if (message == '2') {
       // Respond to ping with pong
       _channel?.sink.add('3');
       return;
     }
 
+    // Engine.IO open handshake: send Socket.IO CONNECT packet '40' to namespace '/'
     if (message.startsWith('0')) {
-      // Connected — join the patient queue room
+      _channel?.sink.add('40');
+      return;
+    }
+
+    // Socket.IO namespace connected
+    if (message.startsWith('40')) {
+      _isSocketIoConnected = true;
       debugPrint('Socket connected, joining patient room');
       if (_patientId != null) {
         _sendEvent('join_queue', {'patientId': _patientId});
@@ -86,8 +108,8 @@ class SocketService {
       return;
     }
 
+    // Socket.IO event message: 42["event_name", data]
     if (message.startsWith('42')) {
-      // Event message: 42["event_name", data]
       try {
         final jsonStr = message.substring(2);
         final parsed = jsonDecode(jsonStr) as List;
@@ -133,6 +155,7 @@ class SocketService {
   /// Disconnect and clean up all resources.
   void disconnect() {
     _disposed = true;
+    _isSocketIoConnected = false;
     _reconnectTimer?.cancel();
     _subscription?.cancel();
     try {

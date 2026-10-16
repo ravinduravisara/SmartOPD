@@ -27,9 +27,10 @@ class QueueService {
     return response['data'] as List<dynamic>? ?? [];
   }
 
-  Future<String> askQueueAssistant(String query) async {
+  Future<String> askQueueAssistant(String query, {String language = 'en'}) async {
     final response = await apiService.request('POST', '/queues/assistant', body: {
       'query': query,
+      'language': language,
     });
     return response['reply'] as String? ?? 'No response received.';
   }
@@ -45,5 +46,32 @@ class QueueService {
 
   Future<void> markAllNotificationsRead() async {
     await apiService.request('POST', '/notifications/read-all');
+  }
+
+  Future<Map<String, dynamic>> updateQueue(
+    String queueId, {
+    String? notes,
+    String? specialNeeds,
+    int? priority,
+  }) async {
+    final body = <String, dynamic>{};
+    if (notes != null) body['notes'] = notes;
+    if (specialNeeds != null) body['specialNeeds'] = specialNeeds;
+    if (priority != null) body['priority'] = priority;
+
+    final response = await apiService.request('PATCH', '/queues/$queueId', body: body);
+    return response['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  Future<void> cancelQueue(String queueId) async {
+    await apiService.request('DELETE', '/queues/$queueId');
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await apiService.request('DELETE', '/notifications/$notificationId');
+  }
+
+  Future<void> clearAllNotifications() async {
+    await apiService.request('DELETE', '/notifications');
   }
 }
