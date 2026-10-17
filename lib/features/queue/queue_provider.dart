@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import '../../services/queue_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/notification_service.dart';

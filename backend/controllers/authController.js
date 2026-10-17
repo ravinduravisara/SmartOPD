@@ -10,13 +10,19 @@ const googleClient = new OAuth2Client();
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validPassword = (password) => typeof password === 'string' && password.length >= 8 && password.length <= 128 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
+const validPhone = (phone) => /^\d{10}$/.test(String(phone || '').trim());
+const validNic = (nic) => /^([0-9]{9}[vVxX]|[0-9]{12})$/.test(String(nic || '').trim());
+const validName = (name) => {
+	const n = String(name || '').trim();
+	return n.length >= 2 && n.length <= 100 && /^[a-zA-Z\s\-'.]+$/.test(n);
+};
 const validProfilePicture = (value) => (String(value).startsWith('data:image/') && String(value).length <= 4500000) || (/^https:\/\/[^\s]+$/.test(value) && String(value).length <= 2048);
 const makeCode = () => String(crypto.randomInt(100000, 1000000));
 const hashCode = (code) => crypto.createHash('sha256').update(code).digest('hex');
 const codeFields = (code) => ({ hash: hashCode(code), expires: new Date(Date.now() + 10 * 60 * 1000) });
 
 function publicUser(user) {
-	return { id: user._id, name: user.name, email: user.email, phone: user.phone, role: user.role, dateOfBirth: user.dateOfBirth, gender: user.gender, profilePicture: user.profilePicture || null };
+	return { id: user._id, name: user.name, email: user.email, phone: user.phone || null, nic: user.nic || null, role: user.role, isEmailVerified: Boolean(user.isEmailVerified), dateOfBirth: user.dateOfBirth || null, gender: user.gender || null, profilePicture: user.profilePicture || null };
 }
 
 function issueToken(user) {
@@ -25,7 +31,7 @@ function issueToken(user) {
 
 async function register(req, res, next) {
 	try {
-		const { name, password, phone, dateOfBirth, gender } = req.body;
+		const { name, password, phone, nic, dateOfBirth, gender } = req.body;
 		const email = normalizeEmail(req.body.email);
 		if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required' });
 		if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address' });
@@ -36,7 +42,7 @@ async function register(req, res, next) {
 		const code = makeCode();
 		const fields = codeFields(code);
 		const user = existing || new User({ email });
-		Object.assign(user, { name, email, phone, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined, gender, password: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: fields.hash, verificationCodeExpires: fields.expires, verificationAttempts: 0 });
+		Object.assign(user, { name, email, phone, nic, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined, gender, password: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: fields.hash, verificationCodeExpires: fields.expires, verificationAttempts: 0 });
 		await sendOtpEmail({ to: email, code, purpose: 'verification' });
 		await user.save();
 		return res.status(201).json({ verificationRequired: true, email, message: 'Verification code sent to your email' });
@@ -117,10 +123,51 @@ async function getProfile(req, res, next) {
 
 async function updateProfile(req, res, next) {
 	try {
-		const allowed = ['name', 'phone', 'dateOfBirth', 'gender', 'profilePicture'];
+		const allowed = ['name', 'phone', 'nic', 'dateOfBirth', 'gender', 'profilePicture'];
 		const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
-		if (updates.name !== undefined && (!String(updates.name).trim() || String(updates.name).length > 100)) return res.status(400).json({ message: 'Name is required and must be 100 characters or fewer' });
-		if (updates.profilePicture !== undefined && updates.profilePicture !== null && !validProfilePicture(updates.profilePicture)) return res.status(400).json({ message: 'Profile picture must be an https URL or an image smaller than 3 MB' });
+
+		if (updates.name !== undefined) {
+			if (!validName(updates.name)) {
+				return res.status(400).json({ message: 'Name must be 2-100 characters and contain letters only' });
+			}
+			updates.name = String(updates.name).trim();
+		}
+
+		if (updates.phone !== undefined && updates.phone !== null && updates.phone !== '') {
+			const cleanedPhone = String(updates.phone).trim();
+			if (!validPhone(cleanedPhone)) {
+				return res.status(400).json({ message: 'Phone number must be exactly 10 digits' });
+			}
+			updates.phone = cleanedPhone;
+		}
+
+		if (updates.nic !== undefined && updates.nic !== null && updates.nic !== '') {
+			const cleanedNic = String(updates.nic).trim().toUpperCase();
+			if (!validNic(cleanedNic)) {
+				return res.status(400).json({ message: 'NIC must be 9 digits followed by V/X or 12 digits (e.g. 991234567V or 200012345678)' });
+			}
+			updates.nic = cleanedNic;
+		}
+
+		if (updates.dateOfBirth !== undefined && updates.dateOfBirth !== null && updates.dateOfBirth !== '') {
+			const dob = new Date(updates.dateOfBirth);
+			if (isNaN(dob.getTime()) || dob >= new Date() || dob < new Date('1900-01-01')) {
+				return res.status(400).json({ message: 'Date of birth must be a valid date in the past' });
+			}
+			updates.dateOfBirth = dob;
+		}
+
+		if (updates.gender !== undefined && updates.gender !== null && updates.gender !== '') {
+			const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
+			if (!allowedGenders.includes(updates.gender)) {
+				return res.status(400).json({ message: 'Please select a valid gender option' });
+			}
+		}
+
+		if (updates.profilePicture !== undefined && updates.profilePicture !== null && !validProfilePicture(updates.profilePicture)) {
+			return res.status(400).json({ message: 'Profile picture must be an https URL or an image smaller than 3 MB' });
+		}
+
 		const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true });
 		return res.json({ user: publicUser(user) });
 	} catch (error) { next(error); }

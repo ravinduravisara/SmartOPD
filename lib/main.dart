@@ -1,13 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-
 import 'config/theme.dart';
 import 'features/admin/admin_dashboard_screen.dart';
 import 'features/appointments/appointments_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/hospitals/hospitals_screen.dart';
+import 'features/profile/edit_profile_screen.dart';
 import 'models/appointment.dart';
 import 'models/dependent.dart';
 import 'models/user.dart';
@@ -457,15 +456,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final dependentRelationship = TextEditingController();
   final editDependentName = TextEditingController();
   final editDependentRelationship = TextEditingController();
-  late final TextEditingController profileName;
   bool addingDependent = false;
   bool savingDependent = false;
   bool savingDependentEdit = false;
   String? editingDependentId;
   String? deletingDependentId;
-  bool editingProfile = false;
-  bool savingProfile = false;
-  String? pendingProfilePicture;
   late final QueueProvider queueProvider;
 
   @override
@@ -473,13 +468,48 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     queueProvider = QueueProvider(QueueService(widget.auth.service.api));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) queueProvider.startLiveTracking();
+      if (mounted) {
+        queueProvider.startLiveTracking();
+        final user = widget.auth.user;
+        if (user != null && !user.isProfileComplete) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(
+                    Icons.assignment_ind_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Welcome! Please complete your profile details.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppTheme.navy,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              action: SnackBarAction(
+                label: 'Complete',
+                textColor: AppTheme.mint,
+                onPressed: _openEditProfile,
+              ),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     });
     dependents = widget.auth.service.getDependents();
     upcomingAppointments = widget.auth.service.getAppointments(
       scope: 'upcoming',
     );
-    profileName = TextEditingController(text: widget.auth.user?.name);
   }
 
   void _reloadHome() => setState(() {
@@ -491,6 +521,46 @@ class _HomeScreenState extends State<HomeScreen> {
   });
 
   Future<void> _openHospitals() async {
+    final user = widget.auth.user;
+    if (user != null && !user.isProfileComplete) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.assignment_ind_outlined, color: AppTheme.teal),
+              SizedBox(width: 8),
+              Text(
+                'Complete Profile',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Text(
+            'Your profile details (${user.missingProfileFields.join(', ')}) are required to book doctor visits. Would you like to complete them now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Later'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Complete Profile'),
+            ),
+          ],
+        ),
+      );
+      if (proceed == true && mounted) {
+        await _openEditProfile();
+        return;
+      }
+      if (!mounted) return;
+    }
+
     final booked = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => HospitalsScreen(service: widget.auth.service),
@@ -511,6 +581,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (changed == true && mounted) _reloadHome();
   }
 
+  Future<void> _openEditProfile() async {
+    final user = widget.auth.user;
+    if (user == null) return;
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          service: widget.auth.service,
+          user: user,
+        ),
+      ),
+    );
+    if (updated == true && mounted) {
+      widget.onChanged();
+      _reloadHome();
+    }
+  }
+
   @override
   void dispose() {
     queueProvider.stopLiveTracking();
@@ -518,12 +605,15 @@ class _HomeScreenState extends State<HomeScreen> {
     dependentRelationship.dispose();
     editDependentName.dispose();
     editDependentRelationship.dispose();
-    profileName.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => GlassScaffold(
+  Widget build(BuildContext context) {
+    final user = widget.auth.user;
+    final isProfileComplete = user?.isProfileComplete ?? true;
+
+    return GlassScaffold(
     titleWidget: const _BrandLockup(compact: true),
     actions: [
       ListenableBuilder(
@@ -584,23 +674,129 @@ class _HomeScreenState extends State<HomeScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(20, glassTopInset(context), 20, 32),
         children: [
-          Text('Good morning,', style: Theme.of(context).textTheme.bodyLarge),
-          Row(
-            children: [
-              _ProfileAvatar(user: widget.auth.user, radius: 27),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.auth.user?.name ?? 'there',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
+          InkWell(
+            onTap: _openEditProfile,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _ProfileAvatar(user: widget.auth.user, radius: 28),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: isProfileComplete
+                                ? AppTheme.teal
+                                : const Color(0xFFD97706),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x26000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isProfileComplete
+                                ? Icons.edit_rounded
+                                : Icons.priority_high_rounded,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Good morning,',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isProfileComplete
+                                    ? AppTheme.mint.withValues(alpha: 0.35)
+                                    : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isProfileComplete
+                                      ? AppTheme.glassBorder
+                                      : const Color(0xFFFDE68A),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isProfileComplete
+                                        ? Icons.edit_outlined
+                                        : Icons.priority_high_rounded,
+                                    size: 13,
+                                    color: isProfileComplete
+                                        ? AppTheme.navy
+                                        : const Color(0xFFB45309),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isProfileComplete
+                                        ? 'Edit Profile'
+                                        : 'Complete Profile',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isProfileComplete
+                                          ? AppTheme.navy
+                                          : const Color(0xFFB45309),
+                                      fontFamily: AppTheme.fontFamily,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          widget.auth.user?.name ?? 'there',
+                          style: Theme.of(context).textTheme.headlineLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 18),
           LiveQueueHomeCard(provider: queueProvider),
           const SizedBox(height: 18),
-          const _CareCard(),
+          if (user != null && !user.isProfileComplete)
+            _CompleteProfileCard(
+              user: user,
+              onTap: _openEditProfile,
+            )
+          else
+            const _CareCard(),
           const SizedBox(height: 28),
           Text('Quick actions', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
@@ -785,74 +981,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
           OutlinedButton.icon(
-            onPressed: _openProfileForm,
+            onPressed: _openEditProfile,
             icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit profile'),
+            label: const Text('Edit profile details'),
           ),
-          if (editingProfile) ...[
-            const SizedBox(height: 12),
-            GlassSurface(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: profileName,
-                    decoration: const InputDecoration(
-                      labelText: 'Full name',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _ProfileAvatar(
-                        imageData: pendingProfilePicture,
-                        user: widget.auth.user,
-                        radius: 30,
-                      ),
-                      const SizedBox(width: 14),
-                      OutlinedButton.icon(
-                        onPressed: savingProfile ? null : _chooseProfilePicture,
-                        icon: const Icon(Icons.photo_camera_outlined),
-                        label: const Text('Change photo'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: savingProfile
-                              ? null
-                              : () => setState(() => editingProfile = false),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: savingProfile ? null : _saveProfile,
-                          child: savingProfile
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Save changes'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     ),
   );
+}
 
   Widget _dependentTile(Dependent dependent) {
     if (editingDependentId == dependent.id) {
@@ -1067,55 +1204,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openProfileForm() {
-    profileName.text = widget.auth.user?.name ?? '';
-    setState(() {
-      pendingProfilePicture = widget.auth.user?.profilePicture;
-      editingProfile = true;
-    });
-  }
 
-  Future<void> _chooseProfilePicture() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 720,
-      maxHeight: 720,
-      imageQuality: 75,
-    );
-    if (image == null || !mounted) return;
-    final bytes = await image.readAsBytes();
-    if (!mounted) return;
-    setState(() {
-      pendingProfilePicture = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-    });
-  }
-
-  Future<void> _saveProfile() async {
-    final name = profileName.text.trim();
-    if (name.isEmpty) {
-      _showMessage('Enter your name first.');
-      return;
-    }
-
-    setState(() => savingProfile = true);
-    try {
-      await widget.auth.service.updateProfile({
-        'name': name,
-        'profilePicture': pendingProfilePicture,
-      });
-      if (mounted)
-        setState(() {
-          editingProfile = false;
-          savingProfile = false;
-          pendingProfilePicture = null;
-        });
-    } catch (error) {
-      if (mounted) {
-        setState(() => savingProfile = false);
-        _showMessage('Could not save profile: $error');
-      }
-    }
-  }
 
   void _showMessage(String message) => ScaffoldMessenger.of(
     context,
@@ -1161,15 +1250,14 @@ MemoryImage? _decodeAvatar(String source) =>
     });
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({this.user, this.imageData, required this.radius});
+  const _ProfileAvatar({this.user, required this.radius});
 
   final User? user;
-  final String? imageData;
   final double radius;
 
   @override
   Widget build(BuildContext context) {
-    final source = imageData ?? user?.profilePicture;
+    final source = user?.profilePicture;
     ImageProvider? image;
     if (source != null && source.startsWith('data:image/')) {
       image = _decodeAvatar(source);
@@ -1274,6 +1362,191 @@ class _UpcomingAppointments extends StatelessWidget {
       );
     },
   );
+}
+
+class _CompleteProfileCard extends StatelessWidget {
+  const _CompleteProfileCard({required this.user, required this.onTap});
+
+  final User user;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = user.missingProfileFields;
+    final pct = user.profileCompletionPercentage;
+
+    return GlassSurface(
+      radius: 24,
+      padding: const EdgeInsets.all(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.assignment_ind_outlined,
+                        size: 14,
+                        color: Color(0xFFB45309),
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'ACTION REQUIRED',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$pct% completed',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.teal,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Complete your profile details',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.navy,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Please add your ${missing.join(', ')} to book doctor visits and access live OPD queue services.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.navy.withValues(alpha: 0.8),
+                    height: 1.35,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: pct / 100.0,
+                backgroundColor: AppTheme.mint.withValues(alpha: 0.35),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.teal),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _fieldChip('Phone', user.phone?.isNotEmpty == true),
+                      _fieldChip('NIC', user.nic?.isNotEmpty == true),
+                      _fieldChip('Birthday', user.dateOfBirth != null),
+                      _fieldChip('Gender', user.gender?.isNotEmpty == true),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.teal,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x26007F73),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Complete',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fieldChip(String label, bool isComplete) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isComplete ? const Color(0xFFE8F5E9) : const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isComplete ? const Color(0xFFA5D6A7) : const Color(0xFFFED7AA),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isComplete
+                ? Icons.check_circle_rounded
+                : Icons.add_circle_outline_rounded,
+            size: 12,
+            color: isComplete ? const Color(0xFF2E7D32) : const Color(0xFFC2410C),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isComplete ? const Color(0xFF2E7D32) : const Color(0xFFC2410C),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CareCard extends StatelessWidget {
