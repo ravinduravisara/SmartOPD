@@ -15,10 +15,24 @@ class SmartQueueAssistantScreen extends StatefulWidget {
 
 class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
   final TextEditingController _controller = TextEditingController();
-  final List<({String sender, String text})> _messages = [];
+  late final Map<String, List<({String sender, String text})>> _messagesByLang;
   bool _sending = false;
   String _selectedLanguage = 'en'; // 'en', 'ta', 'si'
 
+  String _getWelcomeMessage(String lang) {
+    if (lang == 'ta') {
+      return 'வணக்கம்! 👋 நான் உங்கள் SmartOPD உதவியாளர். உங்கள் நேரடி டோக்கன், காத்திருப்பு நேரம் அல்லது மருத்துவர் பற்றி எதையும் கேளுங்கள்.';
+    } else if (lang == 'si') {
+      return 'ආයුබෝවන්! 👋 මම ඔබේ SmartOPD සහායකයා. ඔබේ ටෝකන් අංකය, බලා සිටින වේලාව හෝ පෝලිම ගැන ඕනෑම දෙයක් අසන්න.';
+    } else {
+      return 'Hello! I am your Smart Queue Assistant. Ask me anything about your current OPD token, queue position, or estimated wait time.';
+    }
+  }
+
+  List<({String sender, String text})> get _currentMessages =>
+      _messagesByLang[_selectedLanguage] ??= [
+        (sender: 'assistant', text: _getWelcomeMessage(_selectedLanguage))
+      ];
   final Map<String, List<String>> _quickQueriesMap = {
     'en': [
       'What is my token?',
@@ -43,16 +57,36 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
       'කොපමණ වේලාවක් බලා සිටිය යුතුද?',
       'වෛද්‍යවරයා ප්‍රමාදද?',
       'OPD වේලාවන් කවදාද?'
-    ]
+    ],
   };
+
+  String get _inputHint {
+    switch (_selectedLanguage) {
+      case 'ta':
+        return 'உங்கள் வரிசை பற்றி கேளுங்கள்...';
+      case 'si':
+        return 'ඔබේ පෝලිම ගැන අසන්න...';
+      default:
+        return 'Ask about your queue...';
+    }
+  }
+
+  void _changeLanguage(String lang) {
+    if (_selectedLanguage == lang) return;
+    setState(() {
+      _selectedLanguage = lang;
+    });
+    _scrollToBottom();
+  }
 
   @override
   void initState() {
     super.initState();
-    _messages.add((
-      sender: 'assistant',
-      text: 'Hello! I am your Smart Queue Assistant. Ask me anything about your current OPD token, queue position, or estimated wait time.'
-    ));
+    _messagesByLang = {
+      'en': [(sender: 'assistant', text: _getWelcomeMessage('en'))],
+      'ta': [(sender: 'assistant', text: _getWelcomeMessage('ta'))],
+      'si': [(sender: 'assistant', text: _getWelcomeMessage('si'))],
+    };
   }
 
   void _changeLanguage(String lang) {
@@ -96,7 +130,7 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
     if (presetText == null) _controller.clear();
 
     setState(() {
-      _messages.add((sender: 'user', text: text));
+      _currentMessages.add((sender: 'user', text: text));
       _sending = true;
     });
 
@@ -108,12 +142,12 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
         language: _selectedLanguage,
       );
       setState(() {
-        _messages.add((sender: 'assistant', text: reply));
+        _currentMessages.add((sender: 'assistant', text: reply));
       });
       _scrollToBottom();
     } catch (e) {
       setState(() {
-        _messages.add((sender: 'assistant', text: 'Error connecting to queue assistant. Please try again.'));
+        _currentMessages.add((sender: 'assistant', text: 'Error connecting to queue assistant. Please try again.'));
       });
       _scrollToBottom();
     } finally {
@@ -153,13 +187,25 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
           ),
         ],
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded, color: AppTheme.navy),
+          tooltip: 'Reset Chat',
+          onPressed: () {
+            setState(() {
+              _currentMessages.clear();
+              _currentMessages.add((sender: 'assistant', text: _getWelcomeMessage(_selectedLanguage)));
+            });
+          },
+        ),
+      ],
       body: Padding(
         padding: EdgeInsets.only(top: glassTopInset(context)),
         child: Column(
           children: [
             // Active Context Header
             GlassHeroSurface(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               radius: 18,
               child: Row(
@@ -191,7 +237,7 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
 
             // Language Selector Bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
                 children: [
                   const Icon(Icons.language_rounded, size: 16, color: AppTheme.teal),
@@ -218,16 +264,16 @@ class _SmartQueueAssistantScreenState extends State<SmartQueueAssistantScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
 
             // Messages list
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-                itemCount: _messages.length,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                itemCount: _currentMessages.length,
                 itemBuilder: (context, index) {
-                  final m = _messages[index];
+                  final m = _currentMessages[index];
                   final isUser = m.sender == 'user';
                   final maxWidth = MediaQuery.of(context).size.width * 0.78;
 

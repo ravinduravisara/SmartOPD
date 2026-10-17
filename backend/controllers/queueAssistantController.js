@@ -158,7 +158,33 @@ function generateSmartQueueReply(query, queueContext, language = 'en') {
 		if (isTanglishOrTamil) {
 			return `Aam! 🩺 OPD Doctors பொதுவாக morning 8:00 AM முதல் 4:00 PM வரை இருக்கிறார்கள். Neenga Appointments page-ல் சென்று specific Doctor schedule-ஐ பார்த்து Slot Book செய்யலாம்!`;
 		}
-		return `Yes! 🩺 OPD Doctors are generally available during working hours (8:00 AM - 4:00 PM). You can check individual doctor slots and book from the Appointments page.`;
+		if (!queueContext) {
+			return `ඔබට දැනට සක්‍රිය ටෝකනයක් නොමැත. රෝහලට පැමිණි පසු Appointment පිටුවෙන් "Check In" කරන්න. 🎟️`;
+		}
+		if (q.includes('ටෝකන්') || q.includes('token') || q.includes('අංකය') || q.includes('මගේ')) {
+			return `ඔබේ සක්‍රිය OPD ටෝකන් අංකය **${queueContext.tokenNumber}** වේ (${queueContext.hospitalName} - වෛද්‍ය ${queueContext.doctorName}).`;
+		}
+		if (q.includes('ඉදිරියෙන්') || q.includes('ahead') || q.includes('කී දෙනෙක්') || q.includes('patients')) {
+			return queueContext.patientsAhead === 0
+				? `ඔබට ඉදිරියෙන් කිසිවෙකු නැත! ඊළඟ වාරය ඔබගේ වේ. 🟢`
+				: `ඔබට ඉදිරියෙන් රෝගීන් **${queueContext.patientsAhead} දෙනෙකු** පෝලිමේ රැඳී සිටී. බලා සිටිය යුතු කාලය: ~${queueContext.estimatedWaitMinutes} මිනිත්තු.`;
+		}
+		if (q.includes('වේලාව') || q.includes('wait') || q.includes('time') || q.includes('කොපමණ')) {
+			return queueContext.estimatedWaitMinutes === 0
+				? `ඔබ බලා සිටිය යුතු කාලය මිනිත්තු 0 කි! ඔබ ඊළඟට වෛද්‍යවරයා හමුවීමට සූදානම් වන්න. 🟢`
+				: `ඔබ බලා සිටිය යුතු ඇස්තමේන්තුගත කාලය මිනිත්තු **~${queueContext.estimatedWaitMinutes}** පමණ වේ (${queueContext.patientsAhead} දෙනෙකු ඉදිරියෙන්).`;
+		}
+		if (q.includes('දැනට') || q.includes('current') || q.includes('යන')) {
+			return queueContext.currentToken && queueContext.currentToken !== 'None'
+				? `වෛද්‍යවරයා දැනට පරීක්ෂා කරන්නේ ටෝකන් **${queueContext.currentToken}** ය. ඔබේ ටෝකනය: **${queueContext.tokenNumber}**.`
+				: `තවමත් ටෝකන් ඇමතීම ආරම්භ කර නොමැත. ඔබේ ටෝකනය **${queueContext.tokenNumber}** රැඳී සිටීමේ ලැයිස්තුවේ ඇත.`;
+		}
+		if (q.includes('ප්‍රමාද') || q.includes('delay') || q.includes('late')) {
+			return queueContext.isDelayed
+				? `ඔව්, වෛද්‍ය පරීක්ෂණය සුළු වශයෙන් ප්‍රමාද විය හැක. කරුණාකර රැඳී සිටින්න. ⚠️`
+				: `නැත, OPD පෝලිම සාමාන්‍ය වේගයෙන් ක්‍රියාත්මක වේ! ✅`;
+		}
+		return `ඔබේ සජීවී OPD විස්තරය: ටෝකනය **${queueContext.tokenNumber}**, ඉදිරියෙන් ${queueContext.patientsAhead} දෙනෙක්, ඇස්තමේන්තුගත වේලාව: ~${queueContext.estimatedWaitMinutes} මිනිත්තු. වැඩිදුර විස්තර සඳහා අසන්න! 😊`;
 	}
 
 	// 2. Greetings
@@ -170,9 +196,40 @@ function generateSmartQueueReply(query, queueContext, language = 'en') {
 		}
 		if (isTanglishOrTamil) {
 			return queueContext
-				? `Vanakkam! 👋 Unga Live OPD Token **${queueContext.tokenNumber}** (${queueContext.hospitalName}). Ungalukku munnadi ${queueContext.patientsAhead} patients irukaanga. Naan ungalukku eppadi help pannanum?`
-				: `Vanakkam! 👋 Naan unga SmartOPD Assistant. OPD Token, Wait time, Doctor availability patri enna theriyanum naalum கேளுங்கள்! 😊`;
+				? `வணக்கம்! 👋 உங்கள் நேரடி OPD டோக்கன் **${queueContext.tokenNumber}** (${queueContext.hospitalName}). உங்களுக்கு முன்னால் ${queueContext.patientsAhead} நோயாளிகள் உள்ளனர். நான் உங்களுக்கு எவ்வாறு உதவ வேண்டும்? 😊`
+				: `வணக்கம்! 👋 நான் உங்கள் SmartOPD உதவியாளர். OPD டோக்கன், காத்திருப்பு நேரம் அல்லது மருத்துவர் நேரம் பற்றி கேளுங்கள்! 😊`;
 		}
+		if (!queueContext) {
+			return `உங்களுக்கு தற்போது நேரடி டோக்கன் எதுவும் இல்லை. மருத்துவமனைக்கு வந்ததும் Appointment பக்கத்தில் "Check In" செய்து நேரடி டோக்கனைப் பெறுங்கள். 🎟️`;
+		}
+		if (q.includes('டோக்கன்') || q.includes('token') || q.includes('எண்') || q.includes('ennoda') || q.includes('my')) {
+			return `உங்கள் நேரடி OPD டோக்கன் எண் **${queueContext.tokenNumber}** (${queueContext.hospitalName} - ${queueContext.doctorName}).`;
+		}
+		if (q.includes('முன்னாடி') || q.includes('முன்னால்') || q.includes('ahead') || q.includes('ethana') || q.includes('patients')) {
+			return queueContext.patientsAhead === 0
+				? `உங்களுக்கு முன்னால் எவரும் இல்லை! நீங்கள் தான் அடுத்ததாக அழைக்கப்படுவீர்கள். 🟢`
+				: `உங்களுக்கு முன்னால் **${queueContext.patientsAhead} நோயாளிகள்** காத்திருக்கின்றனர். எதிர்பார்க்கப்படும் நேரம்: ~${queueContext.estimatedWaitMinutes} நிமிடங்கள்.`;
+		}
+		if (q.includes('நேரம்') || q.includes('wait') || q.includes('time') || q.includes('evvalavu')) {
+			return queueContext.estimatedWaitMinutes === 0
+				? `உங்கள் காத்திருப்பு நேரம் ~0 நிமிடங்கள்! அடுத்ததாக நீங்கள் மருத்துவரைச் சந்திக்கலாம். 🟢`
+				: `உங்கள் எதிர்பார்க்கப்படும் காத்திருப்பு நேரம் சுமார் **~${queueContext.estimatedWaitMinutes} நிமிடங்கள்** (${queueContext.patientsAhead} நோயாளிகள் முன்னால் உள்ளனர்).`;
+		}
+		if (q.includes('தற்போது') || q.includes('current') || q.includes('ippo') || q.includes('போகிறது')) {
+			return queueContext.currentToken && queueContext.currentToken !== 'None'
+				? `மருத்துவர் தற்போது பார்க்கும் டோக்கன்: **${queueContext.currentToken}**. உங்கள் டோக்கன்: **${queueContext.tokenNumber}**.`
+				: `மருத்துவர் இன்னும் டோக்கன்களை அழைக்கத் தொடங்கவில்லை. உங்கள் டோக்கன் **${queueContext.tokenNumber}** காத்திருப்புப் பட்டியலில் உள்ளது.`;
+		}
+		if (q.includes('delay') || q.includes('late') || q.includes('லேட்') || q.includes('தாமதம்')) {
+			return queueContext.isDelayed
+				? `ஆம், மருத்துவர் சற்று கூடுதல் நேரம் எடுத்து பரிசோதிக்கிறார். தயவுசெய்து பொறுமையாக இருங்கள். ⚠️`
+				: `இல்லை, OPD வரிசை இயல்பான வேகத்தில் செல்கிறது. பெரிய தாமதங்கள் எதுவும் இல்லை! ✅`;
+		}
+		return `உங்கள் நேரடி OPD விவரம்: டோக்கன் **${queueContext.tokenNumber}**, முன்னால் ${queueContext.patientsAhead} நோயாளிகள், காத்திருப்பு: ~${queueContext.estimatedWaitMinutes} நிமிடங்கள். மேலும் கேள்விகளை கேட்கலாம்! 😊`;
+	}
+
+	// --- 3. ENGLISH RESPONSES ---
+	if (q === 'hi' || q === 'hello' || q === 'hey') {
 		return queueContext
 			? `Hello! 👋 You have Token **${queueContext.tokenNumber}** for Dr. ${queueContext.doctorName}. How can I assist you with your OPD visit today? 😊`
 			: `Hello! 👋 I am your SmartOPD Assistant. Ask me anything about OPD tokens, doctor schedules, or wait times! 😊`;
@@ -251,7 +308,7 @@ function generateSmartQueueReply(query, queueContext, language = 'en') {
 		}
 		return queueContext.patientsAhead === 0
 			? `There are **0 patients ahead of you**! You are next in line for consultation. 🟢`
-			: `There are currently **${queueContext.patientsAhead} patient(s) ahead of you** in the queue.`;
+			: `There are currently **${queueContext.patientsAhead} patient(s) ahead of you** in the queue. Est. wait: ~${queueContext.estimatedWaitMinutes} mins.`;
 	}
 
 	// 7. Wait time / ETA
@@ -267,7 +324,7 @@ function generateSmartQueueReply(query, queueContext, language = 'en') {
 				: `Unga ethirpaarkkappadum wait time sumaar **~${queueContext.estimatedWaitMinutes} nimidangal** (${queueContext.patientsAhead} patients ahead).`;
 		}
 		return queueContext.estimatedWaitMinutes === 0
-			? `Your estimated wait time is **0 minutes**! You are next to see the doctor.`
+			? `Your estimated wait time is **0 minutes**! You are next to see the doctor. 🟢`
 			: `Your estimated wait time is approximately **~${queueContext.estimatedWaitMinutes} minutes** (${queueContext.patientsAhead} patients ahead).`;
 	}
 
