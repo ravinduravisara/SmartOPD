@@ -11,7 +11,10 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validPassword = (password) => typeof password === 'string' && password.length >= 8 && password.length <= 128 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
 const validPhone = (phone) => /^\d{10}$/.test(String(phone || '').trim());
-const validNic = (nic) => /^([0-9]{9}[vVxX]|[0-9]{12})$/.test(String(nic || '').trim());
+const validNic = (nic) => {
+	const cleaned = String(nic || '').replace(/[\s\-]/g, '').trim();
+	return /^([0-9]{9}[vVxX]|[0-9]{12})$/.test(cleaned);
+};
 const validName = (name) => {
 	const n = String(name || '').trim();
 	return n.length >= 2 && n.length <= 100 && /^[a-zA-Z\s\-'.]+$/.test(n);
@@ -37,12 +40,16 @@ async function register(req, res, next) {
 		if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address' });
 		if (!validPassword(password)) return res.status(400).json({ message: 'Password must be 8-128 characters and include uppercase, lowercase, number and symbol' });
 		if (!emailConfigured()) return res.status(503).json({ message: 'Email service is not configured. Set SMTP_USER and SMTP_PASS.' });
+		const cleanNic = nic ? String(nic).replace(/[\s\-]/g, '').trim().toUpperCase() : undefined;
+		if (cleanNic && !validNic(cleanNic)) {
+			return res.status(400).json({ message: 'NIC must be 9 digits followed by V/X or 12 digits (e.g. 991234567V or 200012345678)' });
+		}
 		const existing = await User.findOne({ email });
 		if (existing?.isEmailVerified) return res.status(409).json({ message: 'An account with this email already exists' });
 		const code = makeCode();
 		const fields = codeFields(code);
 		const user = existing || new User({ email });
-		Object.assign(user, { name, email, phone, nic, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined, gender, password: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: fields.hash, verificationCodeExpires: fields.expires, verificationAttempts: 0 });
+		Object.assign(user, { name, email, phone, nic: cleanNic, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined, gender, password: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: fields.hash, verificationCodeExpires: fields.expires, verificationAttempts: 0 });
 		await sendOtpEmail({ to: email, code, purpose: 'verification' });
 		await user.save();
 		return res.status(201).json({ verificationRequired: true, email, message: 'Verification code sent to your email' });
@@ -142,7 +149,7 @@ async function updateProfile(req, res, next) {
 		}
 
 		if (updates.nic !== undefined && updates.nic !== null && updates.nic !== '') {
-			const cleanedNic = String(updates.nic).trim().toUpperCase();
+			const cleanedNic = String(updates.nic).replace(/[\s\-]/g, '').trim().toUpperCase();
 			if (!validNic(cleanedNic)) {
 				return res.status(400).json({ message: 'NIC must be 9 digits followed by V/X or 12 digits (e.g. 991234567V or 200012345678)' });
 			}

@@ -581,7 +581,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (changed == true && mounted) _reloadHome();
   }
 
-  Future<void> _openEditProfile() async {
+  Future<void> _openEditProfile({bool focusNic = false}) async {
     final user = widget.auth.user;
     if (user == null) return;
     final updated = await Navigator.of(context).push<bool>(
@@ -589,10 +589,12 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => EditProfileScreen(
           service: widget.auth.service,
           user: user,
+          initialFocusNic: focusNic,
         ),
       ),
     );
     if (updated == true && mounted) {
+      await widget.auth.refreshUser();
       widget.onChanged();
       _reloadHome();
     }
@@ -664,7 +666,10 @@ class _HomeScreenState extends State<HomeScreen> {
       const SizedBox(width: 8),
     ],
     body: RefreshIndicator(
-      onRefresh: () async => _reloadHome(),
+      onRefresh: () async {
+        await widget.auth.refreshUser();
+        _reloadHome();
+      },
       // Without this the spinner is drawn at the very top of the list, which
       // is behind the translucent app bar.
       edgeOffset: glassTopInset(context),
@@ -794,6 +799,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _CompleteProfileCard(
               user: user,
               onTap: _openEditProfile,
+              onTapNic: () => _openEditProfile(focusNic: true),
             )
           else
             const _CareCard(),
@@ -1365,10 +1371,15 @@ class _UpcomingAppointments extends StatelessWidget {
 }
 
 class _CompleteProfileCard extends StatelessWidget {
-  const _CompleteProfileCard({required this.user, required this.onTap});
+  const _CompleteProfileCard({
+    required this.user,
+    required this.onTap,
+    this.onTapNic,
+  });
 
   final User user;
   final VoidCallback onTap;
+  final VoidCallback? onTapNic;
 
   @override
   Widget build(BuildContext context) {
@@ -1463,7 +1474,11 @@ class _CompleteProfileCard extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       _fieldChip('Phone', user.phone?.isNotEmpty == true),
-                      _fieldChip('NIC', user.nic?.isNotEmpty == true),
+                      _fieldChip(
+                        'NIC',
+                        user.nic?.isNotEmpty == true,
+                        onTap: user.nic?.isNotEmpty == true ? null : onTapNic,
+                      ),
                       _fieldChip('Birthday', user.dateOfBirth != null),
                       _fieldChip('Gender', user.gender?.isNotEmpty == true),
                     ],
@@ -1514,8 +1529,8 @@ class _CompleteProfileCard extends StatelessWidget {
     );
   }
 
-  Widget _fieldChip(String label, bool isComplete) {
-    return Container(
+  Widget _fieldChip(String label, bool isComplete, {VoidCallback? onTap}) {
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isComplete ? const Color(0xFFE8F5E9) : const Color(0xFFFFF7ED),
@@ -1546,6 +1561,15 @@ class _CompleteProfileCard extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: chip,
+      );
+    }
+    return chip;
   }
 }
 

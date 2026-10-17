@@ -42,6 +42,30 @@ class AuthProvider extends ChangeNotifier {
       _run(() => service.resetPassword(email, code, password));
   Future<void> logout() => _run(service.logout);
 
+  Future<User> updateProfile(Map<String, dynamic> updates) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final updated = await service.updateProfile(updates);
+      loading = false;
+      notifyListeners();
+      return updated;
+    } catch (exception) {
+      error = exception.toString();
+      loading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> refreshUser() async {
+    try {
+      await service.restoreSession();
+      notifyListeners();
+    } catch (_) {}
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     loading = true;
     error = null;

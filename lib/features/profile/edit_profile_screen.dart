@@ -17,6 +17,7 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: newValue.text.toUpperCase(),
       selection: newValue.selection,
+      composing: newValue.composing,
     );
   }
 }
@@ -25,11 +26,13 @@ class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({
     required this.service,
     required this.user,
+    this.initialFocusNic = false,
     super.key,
   });
 
   final AuthService service;
   final User user;
+  final bool initialFocusNic;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -39,6 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _nicController;
+  final FocusNode _nicFocusNode = FocusNode();
 
   DateTime? _selectedDateOfBirth;
   String? _selectedGender;
@@ -68,6 +72,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _selectedDateOfBirth = widget.user.dateOfBirth;
     _selectedGender = widget.user.gender;
     _pendingProfilePicture = widget.user.profilePicture;
+
+    if (widget.initialFocusNic) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _nicFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override
@@ -75,6 +87,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _nicController.dispose();
+    _nicFocusNode.dispose();
     super.dispose();
   }
 
@@ -105,7 +118,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   String? _validateNic(String? value) {
-    final v = value?.trim() ?? '';
+    final v = value?.replaceAll(RegExp(r'[\s\-]'), '').trim() ?? '';
     if (v.isEmpty) return 'NIC number is required';
     final isOldFormat = RegExp(r'^[0-9]{9}[vVxX]$').hasMatch(v);
     final isNewFormat = RegExp(r'^[0-9]{12}$').hasMatch(v);
@@ -321,10 +334,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _errorMessage = null;
     });
 
+    final cleanNic = _nicController.text.replaceAll(RegExp(r'[\s\-]'), '').trim().toUpperCase();
+
     final updates = <String, dynamic>{
       'name': _nameController.text.trim(),
       'phone': _phoneController.text.trim(),
-      'nic': _nicController.text.trim().toUpperCase(),
+      'nic': cleanNic,
       if (_selectedDateOfBirth != null)
         'dateOfBirth': _selectedDateOfBirth!.toIso8601String(),
       if (_selectedGender != null) 'gender': _selectedGender,
@@ -347,9 +362,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().replaceAll('Exception: ', '');
       setState(() {
         _isSaving = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = msg;
+        if (msg.toLowerCase().contains('nic')) {
+          _nicError = msg;
+        }
       });
     }
   }
@@ -523,9 +542,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   // NIC Number
                   TextField(
                     controller: _nicController,
+                    focusNode: _nicFocusNode,
+                    textCapitalization: TextCapitalization.characters,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    keyboardType: TextInputType.text,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9vVxX]')),
-                      LengthLimitingTextInputFormatter(12),
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9vVxX\s\-]')),
+                      LengthLimitingTextInputFormatter(14),
                       _UpperCaseTextFormatter(),
                     ],
                     onChanged: (val) {
