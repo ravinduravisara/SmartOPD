@@ -66,6 +66,13 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> updateServerUrl(String url) async {
+    await service.updateServerUrl(url);
+    notifyListeners();
+  }
+
+  String get serverUrl => service.serverUrl;
+
   Future<void> _run(Future<void> Function() action) async {
     loading = true;
     error = null;

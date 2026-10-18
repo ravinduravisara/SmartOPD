@@ -24,6 +24,10 @@ class AuthService {
 
   Future<void> restoreSession() async {
     final prefs = await _prefs;
+    final savedUrl = prefs.getString('custom_server_url');
+    if (savedUrl != null && savedUrl.isNotEmpty) {
+      _api.updateBaseUrl(savedUrl);
+    }
     _api.token = prefs.getString('auth_token');
     if (_api.token == null) return;
     try {
@@ -45,6 +49,19 @@ class AuthService {
       rethrow;
     }
   }
+
+  Future<void> updateServerUrl(String url) async {
+    final prefs = await _prefs;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) {
+      await prefs.remove('custom_server_url');
+    } else {
+      await prefs.setString('custom_server_url', trimmed);
+      _api.updateBaseUrl(trimmed);
+    }
+  }
+
+  String get serverUrl => _api.baseUrl;
 
   Future<void> register({
     required String name,

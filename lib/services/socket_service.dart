@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'dart:io' show Platform;
 
 /// Real-time WebSocket service that connects to the backend Socket.IO server
 /// for live queue updates. Falls back gracefully if connection fails —
@@ -18,8 +17,14 @@ class SocketService {
   bool _isSocketIoConnected = false;
 
   static String get _wsBaseUrl {
-    if (kIsWeb) return 'ws://127.0.0.1:3000';
-    return 'ws://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:3000';
+    const apiOverride = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (apiOverride.isNotEmpty) {
+      final base = apiOverride.endsWith('/api')
+          ? apiOverride.substring(0, apiOverride.length - 4)
+          : apiOverride;
+      return base.replaceFirst(RegExp(r'^http'), 'ws');
+    }
+    return 'wss://smartopd-afut.onrender.com';
   }
 
   /// Connect to the WebSocket server and join the patient's queue room.

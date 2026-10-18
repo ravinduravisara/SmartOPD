@@ -1,8 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'dart:io' show Platform;
 
 class ApiException implements Exception {
   const ApiException(this.message, this.statusCode);
@@ -18,17 +16,21 @@ class ApiService {
           baseUrl ??
           const String.fromEnvironment(
             'API_BASE_URL',
-            defaultValue: '',
-          ).ifEmpty(() => _localApiBaseUrl);
+            defaultValue: 'https://smartopd-afut.onrender.com/api',
+          ).ifEmpty(() => 'https://smartopd-afut.onrender.com/api');
 
-  final String baseUrl;
+  String baseUrl;
   String? token;
 
-  static String get _localApiBaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:3000/api';
+  void updateBaseUrl(String newUrl) {
+    var url = newUrl.trim();
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
     }
-    return 'http://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:3000/api';
+    if (!url.endsWith('/api') && !url.contains('/api/')) {
+      url = '$url/api';
+    }
+    baseUrl = url;
   }
 
   Future<Map<String, dynamic>> request(
