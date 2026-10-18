@@ -181,7 +181,7 @@ class QueueProvider extends ChangeNotifier {
           }
         }
       }
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 

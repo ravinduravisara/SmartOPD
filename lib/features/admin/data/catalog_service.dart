@@ -132,6 +132,8 @@ class AdminCatalogService {
     int slotMinutes = 30,
     bool active = true,
     List<AdminAvailability> availability = const [],
+    String? accountEmail,
+    String? accountPassword,
   }) => _api.request(
     id == null ? 'POST' : 'PATCH',
     id == null ? '/admin/doctors' : '/admin/doctors/$id',
@@ -147,6 +149,10 @@ class AdminCatalogService {
       'slotMinutes': slotMinutes,
       'active': active,
       'availability': availability.map((slot) => slot.toJson()).toList(),
+      if (accountEmail != null && accountEmail.trim().isNotEmpty)
+        'accountEmail': accountEmail.trim(),
+      if (accountPassword != null && accountPassword.isNotEmpty)
+        'accountPassword': accountPassword,
     },
   );
 

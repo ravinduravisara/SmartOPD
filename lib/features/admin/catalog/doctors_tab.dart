@@ -535,6 +535,8 @@ class _DoctorFormState extends State<_DoctorForm> {
   late final TextEditingController _experience;
   late final TextEditingController _fee;
   late final TextEditingController _slot;
+  late final TextEditingController _accountEmail;
+  late final TextEditingController _accountPassword;
 
   String? _hospitalId;
   String? _departmentId;
@@ -558,6 +560,8 @@ class _DoctorFormState extends State<_DoctorForm> {
       text: doctor == null ? '' : '${doctor.consultationFee}',
     );
     _slot = TextEditingController(text: '${doctor?.slotMinutes ?? 30}');
+    _accountEmail = TextEditingController();
+    _accountPassword = TextEditingController();
     _active = doctor?.active ?? true;
     _hospitalId =
         doctor?.hospital.id ??
@@ -594,6 +598,8 @@ class _DoctorFormState extends State<_DoctorForm> {
     _experience.dispose();
     _fee.dispose();
     _slot.dispose();
+    _accountEmail.dispose();
+    _accountPassword.dispose();
     super.dispose();
   }
 
@@ -708,6 +714,8 @@ class _DoctorFormState extends State<_DoctorForm> {
               endTime: _formatTime(block.end),
             ),
         ],
+        accountEmail: _accountEmail.text,
+        accountPassword: _accountPassword.text,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -759,6 +767,36 @@ class _DoctorFormState extends State<_DoctorForm> {
             validator: (value) =>
                 (value ?? '').trim().isEmpty ? 'Enter a specialization' : null,
           ),
+          if (widget.existing == null) ...[
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _accountEmail,
+              enabled: !_saving,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Doctor login email',
+                prefixIcon: Icon(Icons.mail_outline),
+              ),
+              validator: (value) => !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                      .hasMatch((value ?? '').trim())
+                  ? 'Enter a valid login email'
+                  : null,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _accountPassword,
+              enabled: !_saving,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Temporary login password',
+                helperText: 'At least 8 characters',
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+              validator: (value) => (value ?? '').length < 8
+                  ? 'Use at least 8 characters'
+                  : null,
+            ),
+          ],
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: _hospitalId,

@@ -33,7 +33,15 @@ class AuthService {
     } on ApiException catch (error) {
       // Only a rejected token means the session is really gone. A server that
       // is down or unreachable must not throw the login away.
-      if (error.statusCode == 401 || error.statusCode == 403) await logout();
+      if (error.statusCode == 401 || error.statusCode == 403) {
+        // Expired sessions are expected after a long gap or a server restart.
+        // Clear the local credentials and return to login without showing an
+        // alarming API error to the user.
+        _api.token = null;
+        currentUser = null;
+        await prefs.remove('auth_token');
+        return;
+      }
       rethrow;
     }
   }
@@ -89,6 +97,7 @@ class AuthService {
 
   Future<void> _initializeGoogle() async {
     final pending = _googleInitialization ??= GoogleSignIn.instance.initialize(
+      clientId: googleServerClientId,
       serverClientId: googleServerClientId,
     );
     try {

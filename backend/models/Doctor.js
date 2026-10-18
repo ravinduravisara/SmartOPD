@@ -9,6 +9,7 @@ const availabilitySchema = new mongoose.Schema({
 }, { _id: false });
 
 const doctorSchema = new mongoose.Schema({
+	user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true, index: true },
 	name: { type: String, required: true, trim: true, maxlength: 120 },
 	specialization: { type: String, required: true, trim: true, maxlength: 100, index: true },
 	hospital: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', required: true, index: true },
